@@ -6,6 +6,7 @@ import * as Haptics from "expo-haptics";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Dimensions,
   Modal,
   PanResponder,
   Platform,
@@ -231,28 +232,39 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
     stop,
   } = usePlayer();
   const insets = useSafeAreaInsets();
+  const screenH = Dimensions.get("window").height || 860;
   const [barWidth, setBarWidth] = useState(1);
   const [dragTime, setDragTime] = useState<number | null>(null);
   const dragTimeRef = useRef<number | null>(null);
-  const sheetY = useRef(new Animated.Value(0)).current;
+  const sheetY = useRef(new Animated.Value(screenH)).current;
+  const dismissingRef = useRef(false);
 
   useEffect(() => {
     if (expanded) {
-      sheetY.setValue(0);
+      dismissingRef.current = false;
+      sheetY.setValue(screenH);
+      Animated.spring(sheetY, {
+        toValue: 0,
+        useNativeDriver: true,
+        damping: 26,
+        stiffness: 260,
+        mass: 0.9,
+      }).start();
     }
-  }, [expanded, sheetY]);
+  }, [expanded, screenH, sheetY]);
 
   const dismissSheet = useCallback(() => {
+    if (dismissingRef.current) return;
+    dismissingRef.current = true;
     Haptics.selectionAsync().catch(() => {});
     Animated.timing(sheetY, {
-      toValue: 480,
-      duration: 170,
+      toValue: screenH,
+      duration: 200,
       useNativeDriver: true,
     }).start(() => {
       setExpanded(false);
-      sheetY.setValue(0);
     });
-  }, [setExpanded, sheetY]);
+  }, [screenH, setExpanded, sheetY]);
 
   const swipeResponder = useMemo(
     () =>
@@ -372,7 +384,7 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
       </View>
 
       {/* Expandable Full-Screen Editorial Now Playing Sheet */}
-      <Modal visible={expanded} animationType="slide" onRequestClose={dismissSheet}>
+      <Modal visible={expanded} transparent animationType="none" onRequestClose={dismissSheet}>
         <Animated.View
           style={[
             styles.sheetRoot,
