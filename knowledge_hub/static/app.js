@@ -375,7 +375,7 @@ function renderJobsBanner(activeJobs) {
     ...activeJobs.map((j) => {
       const pct = Math.round((Number(j.progress) || 0) * 100);
       const segInfo = j.total_segments ? ` (${j.processed_segments}/${j.total_segments})` : "";
-      const typeLabel = { translate: "Çeviri", narrate: "Seslendirme", transcribe: "Transkripsiyon" }[j.job_type] || j.job_type;
+      const typeLabel = { translate: "Çeviri", narrate: "Seslendirme", transcribe: "Transkripsiyon", podcast: "Podcast Sohbeti" }[j.job_type] || j.job_type;
       return el(
         "div",
         { className: "job-row" },
@@ -642,6 +642,67 @@ async function triggerNarration(item, { forceRegenerate = false } = {}) {
   } catch (e) {
     toast(e.message);
   }
+}
+
+async function triggerPodcast(item) {
+  const provider = state.settings.translation_provider || "openrouter";
+  const model = state.settings.translation_model || "google/gemini-2.5-flash";
+  const keyMap = { openrouter: "openrouter_api_key", openai: "openai_api_key" };
+  const needsKey = keyMap[provider] && !state.secrets[keyMap[provider]]?.configured;
+
+  let length = "medium";
+  const lenSeg = el("div", { className: "segmented", style: { marginBottom: "14px" } });
+  function renderLen() {
+    lenSeg.replaceChildren(
+      ...[["short", "Kısa (~3 dk)"], ["medium", "Derin (~5 dk)"]].map(([k, lbl]) =>
+        el("button", { className: length === k ? "active" : "", onclick: () => { length = k; renderLen(); } }, lbl)
+      )
+    );
+  }
+  renderLen();
+
+  const box = el("div", {},
+    el("p", {}, "Bu içerikten Emel ve Ahmet arasında iki konuşmacılı, doğal Türkçe teknik podcast bölümü (MP3 + zaman damgalı diyalog) üretilir."),
+    el("p", { className: "help-text", style: { marginBottom: "12px" } }, needsKey
+      ? `Senaryo üretimi için ${provider} API anahtarı henüz girilmemiş; Ayarlar'dan ekleyebilir veya ücretsiz Mock denemesi yapabilirsiniz.`
+      : `Senaryo: ${provider} / ${model} · Seslendirme: Edge Neural (Emel + Ahmet · Ücretsiz)`),
+    el("div", { className: "field", style: { marginBottom: "14px" } }, el("label", {}, "Bölüm Uzunluğu"), lenSeg),
+    el("div", { className: "actions-row" },
+      !needsKey
+        ? el("button", {
+            className: "btn-primary",
+            onclick: async () => {
+              closeModal();
+              try {
+                await api(`/api/items/${item.id}/podcast`, {
+                  method: "POST",
+                  body: { length, provider, model, tts_provider: "edge_tts", async_job: true },
+                });
+                toast("2 konuşmacılı Türkçe podcast üretimi başlatıldı.");
+                ensureJobPolling();
+              } catch (e) { toast(e.message); }
+            },
+          }, icon("mic", 14), "Podcast Üret")
+        : el("button", {
+            className: "btn-primary",
+            onclick: () => { closeModal(); state.settingsTab = "translation"; loadSettingsData().then(() => setNav("settings")); },
+          }, icon("settings", 14), "Ayarlara Git"),
+      el("button", {
+        onclick: async () => {
+          closeModal();
+          try {
+            await api(`/api/items/${item.id}/podcast`, {
+              method: "POST",
+              body: { length: "short", provider: "mock", model: "mock-tr-v1", tts_provider: "edge_tts", async_job: true },
+            });
+            toast("Ücretsiz demo podcast (Emel + Ahmet) başlatıldı.");
+            ensureJobPolling();
+          } catch (e) { toast(e.message); }
+        },
+      }, "Ücretsiz Demo Podcast")
+    )
+  );
+  openModal("Podcast Sohbeti Üret (2 Kişilik)", box);
 }
 
 // =========================================================================
@@ -927,6 +988,13 @@ function renderReader() {
 
   // More (...) Popover
   const moreMenu = el("div", { className: "popover-menu hidden" },
+    el("button", {
+      className: "menu-item",
+      onclick: () => {
+        closePopovers();
+        triggerPodcast(item);
+      },
+    }, icon("mic", 15), "Podcast Sohbeti Üret (2 Kişilik)"),
     el("button", {
       className: "menu-item",
       onclick: () => {
@@ -1354,6 +1422,7 @@ function renderListen() {
               ),
               el("div", { className: "actions-row" },
                 el("button", { className: "btn-primary btn-sm", onclick: () => triggerNarration(it) }, icon("play", 13), "Dinle"),
+                el("button", { className: "btn-sm", onclick: () => triggerPodcast(it) }, icon("mic", 13), "2 Kişilik Podcast"),
                 el("button", { className: "btn-sm", onclick: () => player.enqueue(it) }, icon("queue", 14), "Sıraya Ekle"),
                 it.source_audio_path
                   ? el("button", {

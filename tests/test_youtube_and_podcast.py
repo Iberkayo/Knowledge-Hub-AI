@@ -60,3 +60,52 @@ def test_import_url_auto_detects_youtube_and_saves_transcript(tmp_path, monkeypa
     segs = json.loads(item["transcript_json"])
     assert len(segs) == 2
     assert segs[0]["start"] == 0.0
+
+
+def test_parse_podcast_turns_and_generate_episode_api(tmp_path):
+    from knowledge_hub.podcast import parse_podcast_turns
+
+    raw = (
+        "**EMEL**: Merhaba, bugün değerlendirme sistemlerini konuşuyoruz.\n"
+        "AHMET: Kesinlikle, hata analizi olmadan güvenilir metrik kurulamaz.\n"
+        "[EMEL] - Peki ilk adım ne olmalı?"
+    )
+    turns = parse_podcast_turns(raw)
+    assert len(turns) == 3
+    assert turns[0]["speaker"] == "EMEL" and turns[0]["voice"] == "tr-TR-EmelNeural"
+    assert turns[1]["speaker"] == "AHMET" and turns[1]["voice"] == "tr-TR-AhmetNeural"
+    assert turns[2]["speaker"] == "EMEL"
+
+    app = server.create_app(tmp_path / "pod.sqlite3", secrets_path=tmp_path / ".secrets.json")
+    client = TestClient(app)
+    created = client.post(
+        "/api/items",
+        json={
+            "title": "LLM Evals",
+            "source": "manual",
+            "kind": "article",
+            "content": "Evaluation requires error analysis.\n\n```python\nprint('skip me')\n```\n\nCalibration matters.",
+        },
+    )
+    assert created.status_code == 201
+    item_id = created.json()["id"]
+
+    pod = client.post(
+        f"/api/items/{item_id}/podcast",
+        json={"length": "short", "provider": "mock", "tts_provider": "mock", "async_job": False},
+    )
+    assert pod.status_code == 200
+    body = pod.json()
+    assert body["turns"] >= 4
+    assert body["duration_sec"] > 0
+
+    audio = client.get(f"/api/items/{item_id}/audio")
+    assert audio.status_code == 200
+    assert audio.headers["content-type"].startswith("audio/mpeg")
+    assert len(audio.content) > 0
+
+    fetched = client.get(f"/api/items/{item_id}").json()
+    transcript = json.loads(fetched["transcript_json"])
+    assert len(transcript) == body["turns"]
+    assert transcript[0]["speaker"] == "EMEL"
+

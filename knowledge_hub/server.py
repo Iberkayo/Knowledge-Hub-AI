@@ -49,6 +49,7 @@ from knowledge_hub.ingest import extract, extract_rich
 from knowledge_hub.jobs import JobManager
 from knowledge_hub.library import Library
 from knowledge_hub.media import document as extract_document_file, transcribe as whisper_transcribe, whisper_status
+from knowledge_hub.podcast import generate_podcast_episode
 from knowledge_hub.providers import (
     DemoTranslator,
     MockTranslator,
@@ -111,6 +112,14 @@ class NarrateRequest(BaseModel):
     provider: Literal["supertonic", "elevenlabs", "edge_tts", "mock"] | None = None
     model: str | None = Field(default=None, max_length=120)
     voice: str | None = Field(default=None, max_length=120)
+    async_job: bool = True
+
+
+class PodcastRequest(BaseModel):
+    length: Literal["short", "medium"] = "medium"
+    provider: Literal["openrouter", "openai", "custom", "mock"] | None = None
+    model: str | None = Field(default=None, max_length=200)
+    tts_provider: Literal["edge_tts", "mock"] = "edge_tts"
     async_job: bool = True
 
 
@@ -464,6 +473,61 @@ def create_app(
                 is_cancelled=lambda: jobs.is_cancelled(jid),
             )
             return {"characters_billed": res["characters_billed"]}
+
+        return jobs.submit(job_id, _work)
+
+    @app.post("/api/items/{identifier}/podcast")
+    def podcast_endpoint(identifier: str, req: PodcastRequest):
+        lookup(identifier)
+        try:
+            translator = _resolve_translator(lib, secrets, req.provider, req.model, "summary")
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+
+        if not req.async_job:
+            try:
+                return generate_podcast_episode(
+                    lib,
+                    identifier,
+                    translator,
+                    length=req.length,
+                    tts_provider=req.tts_provider,
+                )
+            except Exception as exc:
+                raise HTTPException(422, str(exc))
+
+        job = jobs.create_job(
+            job_type="podcast",
+            stage="WRITING_SCRIPT",
+            item_id=identifier,
+            provider=f"{translator.provider_name}+{req.tts_provider}",
+            model=translator.model_name,
+            payload={"length": req.length},
+        )
+        job_id = str(job["id"])
+
+        def _work(jid: str):
+            def _progress(stage: str, done: int, total: int, hits: int):
+                pct = 0.15 if stage == "WRITING_SCRIPT" else (0.2 + 0.8 * (done / max(1, total)))
+                jobs.update(
+                    jid,
+                    stage=stage,
+                    processed_segments=done,
+                    total_segments=total,
+                    cache_hits=hits,
+                    progress=round(min(1.0, pct), 3),
+                )
+
+            res = generate_podcast_episode(
+                lib,
+                identifier,
+                translator,
+                length=req.length,
+                tts_provider=req.tts_provider,
+                on_progress=_progress,
+                is_cancelled=lambda: jobs.is_cancelled(jid),
+            )
+            return {"turns": res["turns"], "duration_sec": res["duration_sec"]}
 
         return jobs.submit(job_id, _work)
 
