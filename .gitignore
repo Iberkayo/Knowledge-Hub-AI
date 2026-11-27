@@ -6,3 +6,5 @@ outputs/
 *.mp3
 *.wav
 *.egg-info/
+*.sqlite3
+*.db
