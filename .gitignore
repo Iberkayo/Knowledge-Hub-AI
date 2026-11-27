@@ -5,6 +5,11 @@ __pycache__/
 outputs/
 *.mp3
 *.wav
+*.m4a
+*.ogg
 *.egg-info/
 *.sqlite3
 *.db
+.secrets*
+*.dpapi
+*.log
