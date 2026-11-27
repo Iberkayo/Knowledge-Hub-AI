@@ -23,6 +23,9 @@ class Metadata(BaseModel):
     notes: str = Field(default="",max_length=20000)
     category: str = Field(default="",max_length=100)
 
+class URLRequest(BaseModel):
+    url: str = Field(min_length=8,max_length=2000)
+
 class FeedRequest(BaseModel):
     xml: str = Field(min_length=1,max_length=2000000)
 
@@ -91,4 +94,23 @@ def create_app(db_path=None):
             return parse_feed(req.xml)
         except Exception:
             raise HTTPException(422,"Invalid or unsupported feed")
+    @app.post("/api/import-url",status_code=201)
+    def import_url(req: URLRequest):
+        from knowledge_hub.fetch_public import fetch_public
+        try:
+            result=fetch_public(req.url, expected="html")
+            original=extract(result)
+            from html.parser import HTMLParser
+            from urllib.parse import urlsplit
+            return lib.add(urlsplit(req.url).hostname,req.url,"article",original)
+        except Exception:
+            raise HTTPException(422,"Could not import public article; use saved HTML or text")
+    @app.post("/api/feed/url")
+    def feed_url(req: URLRequest):
+        from knowledge_hub.fetch_public import fetch_public
+        from knowledge_hub.feed import parse_feed
+        try:
+            return parse_feed(fetch_public(req.url, expected="xml"))
+        except Exception:
+            raise HTTPException(422,"Could not import public feed")
     return app
