@@ -1631,7 +1631,8 @@ function renderSettings() {
   } else if (state.settingsTab === "narration") {
     const ttsProvSel = el("select", {},
       ...[
-        ["edge_tts", "Edge Neural TTS (Doğal Türkçe · Ücretsiz · Önerilen)"],
+        ["edge_tts", "Edge Neural TTS (Doğal Türkçe · Ücretsiz · Varsayılan)"],
+        ["openai_tts", "OpenAI TTS (gpt-4o-mini-tts · Yüksek Doğallık)"],
         ["supertonic", "Supertonic 3 (Tam Çevrimdışı Yerel ONNX)"],
         ["browser", "Tarayıcı Sesi (Anlık)"],
         ["elevenlabs", "ElevenLabs (API Kredili)"],
@@ -1646,6 +1647,17 @@ function renderSettings() {
         ["tr-TR-EmelNeural", "Emel · Kadın (Doğal Türkçe)"],
       ].map(([k, l]) =>
         el("option", { value: k, ...((s.edge_tts_voice || "tr-TR-AhmetNeural") === k ? { selected: "selected" } : {}) }, l)
+      )
+    );
+    const oaiVoiceSel = el("select", {},
+      ...[
+        ["coral", "Coral · Sıcak & Akıcı (Önerilen)"],
+        ["onyx", "Onyx · Derin Erkek"],
+        ["nova", "Nova · Net Kadın"],
+        ["ash", "Ash · Doğal Podcast Erkek"],
+        ["sage", "Sage · Sakin Anlatıcı"],
+      ].map(([k, l]) =>
+        el("option", { value: k, ...((s.openai_tts_voice || "coral") === k ? { selected: "selected" } : {}) }, l)
       )
     );
     const stVoiceSel = el("select", {},
@@ -1694,6 +1706,7 @@ function renderSettings() {
       el("div", { className: "form-grid", style: { marginBottom: "14px" } },
         el("div", { className: "field" }, el("label", {}, "Varsayılan Sağlayıcı"), ttsProvSel),
         el("div", { className: "field" }, el("label", {}, "Edge Neural Türkçe Sesi"), edgeVoiceSel),
+        el("div", { className: "field" }, el("label", {}, "OpenAI TTS Sesi (gpt-4o-mini-tts)"), oaiVoiceSel),
         el("div", { className: "field" }, el("label", {}, "Supertonic 3 Ses Stili (Çevrimdışı)"), stVoiceSel)
       ),
       el("div", { className: "actions-row", style: { marginBottom: "18px" } },
@@ -1705,6 +1718,7 @@ function renderSettings() {
               body: {
                 tts_provider: ttsProvSel.value,
                 edge_tts_voice: edgeVoiceSel.value,
+                openai_tts_voice: oaiVoiceSel.value,
                 supertonic_voice: stVoiceSel.value,
                 elevenlabs_model: elModelSel.value,
                 elevenlabs_voice_id: elVoiceIn.value.trim(),
@@ -1726,13 +1740,29 @@ function renderSettings() {
                 method: "POST",
                 body: { voice: edgeVoiceSel.value },
               });
-              const a = el("audio", { controls: "controls", src: res.url, style: { width: "100%" } });
+              const a = el("audio", { controls: "controls", src: withMediaToken(res.url), style: { width: "100%" } });
               sampleAudioWrap.replaceChildren(a);
               a.play().catch(() => {});
               elStatusOut.textContent = `Edge Neural (${res.voice}) örnek ses hazır (ücretsiz · doğal Türkçe MP3).`;
             } catch (e) { elStatusOut.textContent = `Hata: ${e.message}`; }
           },
-        }, icon("volume", 14), "Edge Türkçe Örnek Dinle"),
+        }, icon("volume", 14), "Edge Örnek Dinle"),
+        el("button", {
+          className: "btn-sm",
+          onclick: async () => {
+            elStatusOut.textContent = "OpenAI gpt-4o-mini-tts örnek üretiliyor...";
+            try {
+              const res = await api("/api/providers/openai-tts/sample", {
+                method: "POST",
+                body: { voice: oaiVoiceSel.value, model: "gpt-4o-mini-tts" },
+              });
+              const a = el("audio", { controls: "controls", src: withMediaToken(res.url), style: { width: "100%" } });
+              sampleAudioWrap.replaceChildren(a);
+              a.play().catch(() => {});
+              elStatusOut.textContent = `OpenAI TTS (${res.voice} · ${res.model}) örnek ses hazır.`;
+            } catch (e) { elStatusOut.textContent = `Hata: ${e.message}`; }
+          },
+        }, "OpenAI TTS Örnek"),
         el("button", {
           className: "btn-ghost btn-sm",
           onclick: async () => {
@@ -1742,7 +1772,7 @@ function renderSettings() {
                 method: "POST",
                 body: { voice: stVoiceSel.value },
               });
-              const a = el("audio", { controls: "controls", src: res.url, style: { width: "100%" } });
+              const a = el("audio", { controls: "controls", src: withMediaToken(res.url), style: { width: "100%" } });
               sampleAudioWrap.replaceChildren(a);
               a.play().catch(() => {});
               elStatusOut.textContent = `Supertonic 3 (${res.voice}) örnek ses hazır (${res.duration_sec} sn · çevrimdışı).`;

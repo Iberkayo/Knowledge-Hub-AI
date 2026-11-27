@@ -14,6 +14,7 @@ from knowledge_hub.audio_pipeline import (
     audio_cache_key,
     clean_narration_text,
     synthesize_edge_tts_chunk,
+    synthesize_openai_tts_chunk,
 )
 from knowledge_hub.library import Library
 from knowledge_hub.providers import RichTranslator
@@ -21,6 +22,10 @@ from knowledge_hub.providers import RichTranslator
 SPEAKER_VOICES = {
     "EMEL": "tr-TR-EmelNeural",
     "AHMET": "tr-TR-AhmetNeural",
+}
+OPENAI_PODCAST_VOICES = {
+    "EMEL": "coral",
+    "AHMET": "onyx",
 }
 
 PODCAST_SYSTEM_PROMPTS = {
@@ -91,6 +96,7 @@ def generate_podcast_episode(
     *,
     length: str = "medium",
     tts_provider: str = "edge_tts",
+    tts_api_key: str = "",
     on_progress: Callable[[str, int, int, int], None] | None = None,
     is_cancelled: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
@@ -145,7 +151,7 @@ def generate_podcast_episode(
     for idx, turn in enumerate(turns):
         if is_cancelled and is_cancelled():
             raise RuntimeError("JOB_CANCELLED")
-        voice = turn["voice"]
+        voice = OPENAI_PODCAST_VOICES[turn["speaker"]] if tts_provider == "openai_tts" else turn["voice"]
         spoken = turn["text"]
         key = audio_cache_key(spoken, f"podcast_{tts_provider}", "dual-host-tr", voice, fmt=fmt_tag)
         part_file = parts_dir / f"{key}.mp3"
@@ -163,6 +169,14 @@ def generate_podcast_episode(
             audio_bytes = _MOCK_MP3_FRAME * 4
         elif tts_provider == "edge_tts":
             audio_bytes = synthesize_edge_tts_chunk(spoken, voice=voice)
+        elif tts_provider == "openai_tts":
+            audio_bytes = synthesize_openai_tts_chunk(
+                spoken,
+                api_key=tts_api_key,
+                voice=voice,
+                model="gpt-4o-mini-tts",
+                instructions="Doğal, canlı ve samimi bir Türkçe teknoloji podcast sohbetinde konuşuyormuş gibi oku.",
+            )
         else:
             raise ValueError(f"Podcast için desteklenmeyen TTS sağlayıcısı: {tts_provider}")
 
@@ -233,7 +247,7 @@ def generate_podcast_episode(
         item_id,
         audio_path=str(final_path),
         status="ready",
-        provider="podcast_edge" if tts_provider == "edge_tts" else "podcast_mock",
+        provider=f"podcast_{tts_provider}",
         model=f"dual-host-{length}",
         voice="Emel + Ahmet",
         duration_sec=total_duration,

@@ -22,6 +22,8 @@ DEFAULT_SETTINGS: dict[str, object] = {
     "monthly_spend_limit_usd": 10.0,
     "tts_provider": "edge_tts",
     "edge_tts_voice": "tr-TR-AhmetNeural",
+    "openai_tts_model": "gpt-4o-mini-tts",
+    "openai_tts_voice": "coral",
     "supertonic_voice": "M1",
     "supertonic_speed": 1.05,
     "elevenlabs_model": "eleven_flash_v2_5",

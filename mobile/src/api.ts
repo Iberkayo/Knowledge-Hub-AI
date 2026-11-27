@@ -164,17 +164,21 @@ export class KnowledgeHubApi {
     });
   }
 
-  narrateItem(id: string, provider: "edge_tts" | "supertonic" | "elevenlabs" = "edge_tts"): Promise<JobInfo> {
+  narrateItem(id: string, provider: "edge_tts" | "openai_tts" | "supertonic" | "elevenlabs" = "edge_tts"): Promise<JobInfo> {
     return this.request<JobInfo>(`/api/items/${encodeURIComponent(id)}/narrate`, {
       method: "POST",
       body: { provider, async_job: true },
     });
   }
 
-  generatePodcast(id: string, length: "short" | "medium" = "medium"): Promise<JobInfo> {
+  generatePodcast(
+    id: string,
+    length: "short" | "medium" = "medium",
+    ttsProvider: "edge_tts" | "openai_tts" = "edge_tts"
+  ): Promise<JobInfo> {
     return this.request<JobInfo>(`/api/items/${encodeURIComponent(id)}/podcast`, {
       method: "POST",
-      body: { length, tts_provider: "edge_tts", async_job: true },
+      body: { length, tts_provider: ttsProvider, async_job: true },
     });
   }
 

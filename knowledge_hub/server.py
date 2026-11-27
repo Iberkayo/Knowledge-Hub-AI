@@ -22,6 +22,8 @@ from knowledge_hub import __version__
 from knowledge_hub.auth import ApiTokenMiddleware
 from knowledge_hub.audio_pipeline import (
     EDGE_TTS_VOICES,
+    OPENAI_TTS_MODELS,
+    OPENAI_TTS_VOICES,
     SUPERTONIC_VOICES,
     estimate_narration_cost,
     get_elevenlabs_subscription,
@@ -30,6 +32,7 @@ from knowledge_hub.audio_pipeline import (
     narrate_item,
     synthesize_edge_tts_chunk,
     synthesize_elevenlabs_chunk,
+    synthesize_openai_tts_chunk,
     synthesize_supertonic_chunk,
 )
 from knowledge_hub.benchmark import RUBRIC_WEIGHTS, build_reference_lookup, evaluate as evaluate_benchmark
@@ -109,7 +112,7 @@ class TranslateRequest(BaseModel):
 
 
 class NarrateRequest(BaseModel):
-    provider: Literal["supertonic", "elevenlabs", "edge_tts", "mock"] | None = None
+    provider: Literal["edge_tts", "openai_tts", "supertonic", "elevenlabs", "mock"] | None = None
     model: str | None = Field(default=None, max_length=120)
     voice: str | None = Field(default=None, max_length=120)
     async_job: bool = True
@@ -119,8 +122,18 @@ class PodcastRequest(BaseModel):
     length: Literal["short", "medium"] = "medium"
     provider: Literal["openrouter", "openai", "custom", "mock"] | None = None
     model: str | None = Field(default=None, max_length=200)
-    tts_provider: Literal["edge_tts", "mock"] = "edge_tts"
+    tts_provider: Literal["edge_tts", "openai_tts", "mock"] = "edge_tts"
     async_job: bool = True
+
+
+class OpenAITtsSampleRequest(BaseModel):
+    voice: str = Field(default="coral", max_length=32)
+    model: str = Field(default="gpt-4o-mini-tts", max_length=64)
+    text: str = Field(
+        default="Merhaba! Knowledge Hub ile teknik makaleleri doğal, sıcak ve akıcı bir Türkçeyle dinleyebilirsiniz.",
+        min_length=1,
+        max_length=500,
+    )
 
 
 class SupertonicSampleRequest(BaseModel):
@@ -393,6 +406,9 @@ def create_app(
         if provider == "edge_tts":
             model = req.model or "edge-neural-tr"
             voice = req.voice or str(settings.get("edge_tts_voice") or "tr-TR-AhmetNeural")
+        elif provider == "openai_tts":
+            model = req.model or str(settings.get("openai_tts_model") or "gpt-4o-mini-tts")
+            voice = req.voice or str(settings.get("openai_tts_voice") or "coral")
         elif provider == "supertonic":
             model = req.model or "supertonic-3"
             voice = req.voice or str(settings.get("supertonic_voice") or "M1")
@@ -411,6 +427,9 @@ def create_app(
         if provider == "edge_tts":
             model = req.model or "edge-neural-tr"
             voice = req.voice or str(settings.get("edge_tts_voice") or "tr-TR-AhmetNeural")
+        elif provider == "openai_tts":
+            model = req.model or str(settings.get("openai_tts_model") or "gpt-4o-mini-tts")
+            voice = req.voice or str(settings.get("openai_tts_voice") or "coral")
         elif provider == "supertonic":
             model = req.model or "supertonic-3"
             voice = req.voice or str(settings.get("supertonic_voice") or "M1")
@@ -424,6 +443,12 @@ def create_app(
                 raise HTTPException(400, "ElevenLabs API anahtarı ayarlanmamış. Ayarlar sayfasından ekleyin.")
             if not voice:
                 raise HTTPException(400, "Lütfen Ayarlar sayfasından bir ElevenLabs sesi seçin.")
+        elif provider == "openai_tts":
+            api_key = secrets.get("openai_api_key") or ""
+            if not api_key:
+                raise HTTPException(400, "OpenAI API anahtarı ayarlanmamış. Ayarlar → Çeviri sekmesinden OpenAI anahtarınızı ekleyin.")
+            model = model if model in OPENAI_TTS_MODELS else "gpt-4o-mini-tts"
+            voice = voice if voice in OPENAI_TTS_VOICES else "coral"
         elif provider == "supertonic":
             voice = voice if voice in SUPERTONIC_VOICES else "M1"
         elif provider == "mock":
@@ -484,6 +509,12 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(400, str(exc))
 
+        tts_api_key = ""
+        if req.tts_provider == "openai_tts":
+            tts_api_key = secrets.get("openai_api_key") or ""
+            if not tts_api_key:
+                raise HTTPException(400, "OpenAI TTS için Ayarlar → Çeviri sekmesinden OpenAI API anahtarınızı ekleyin.")
+
         if not req.async_job:
             try:
                 return generate_podcast_episode(
@@ -492,6 +523,7 @@ def create_app(
                     translator,
                     length=req.length,
                     tts_provider=req.tts_provider,
+                    tts_api_key=tts_api_key,
                 )
             except Exception as exc:
                 raise HTTPException(422, str(exc))
@@ -524,6 +556,7 @@ def create_app(
                 translator,
                 length=req.length,
                 tts_provider=req.tts_provider,
+                tts_api_key=tts_api_key,
                 on_progress=_progress,
                 is_cancelled=lambda: jobs.is_cancelled(jid),
             )
@@ -989,6 +1022,23 @@ def create_app(
             sample_path = lib.audio_dir / sample_name
             sample_path.write_bytes(audio_bytes)
             return {"url": f"/api/audio-samples/{sample_name}", "voice": chosen}
+        except Exception as exc:
+            raise HTTPException(422, str(exc))
+
+    @app.post("/api/providers/openai-tts/sample")
+    def api_openai_tts_sample(req: OpenAITtsSampleRequest):
+        key = secrets.get("openai_api_key") or ""
+        if not key:
+            raise HTTPException(400, "OpenAI API anahtarı yapılandırılmamış. Ayarlar → Çeviri sekmesinden ekleyin.")
+        try:
+            chosen_voice = req.voice if req.voice in OPENAI_TTS_VOICES else "coral"
+            chosen_model = req.model if req.model in OPENAI_TTS_MODELS else "gpt-4o-mini-tts"
+            audio_bytes = synthesize_openai_tts_chunk(req.text, api_key=key, voice=chosen_voice, model=chosen_model)
+            sample_name = f"sample-{hashlib.sha256(('oai' + chosen_model + chosen_voice + req.text).encode()).hexdigest()[:12]}.mp3"
+            sample_path = lib.audio_dir / sample_name
+            sample_path.write_bytes(audio_bytes)
+            lib.record_usage("narration", "openai_tts", chosen_model, characters=len(req.text))
+            return {"url": f"/api/audio-samples/{sample_name}", "voice": chosen_voice, "model": chosen_model}
         except Exception as exc:
             raise HTTPException(422, str(exc))
 

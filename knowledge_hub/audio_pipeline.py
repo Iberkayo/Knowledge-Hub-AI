@@ -25,6 +25,12 @@ ELEVEN_MODELS = (
 )
 SUPERTONIC_VOICES = ("M1", "M2", "M3", "M4", "M5", "F1", "F2", "F3", "F4", "F5")
 EDGE_TTS_VOICES = ("tr-TR-AhmetNeural", "tr-TR-EmelNeural")
+OPENAI_TTS_MODELS = ("gpt-4o-mini-tts", "tts-1-hd", "tts-1")
+OPENAI_TTS_VOICES = ("coral", "onyx", "nova", "ash", "sage", "alloy", "echo", "shimmer")
+OPENAI_TTS_DEFAULT_INSTRUCTIONS = (
+    "Anadili Türkçe olan, sıcak, akıcı ve doğal bir teknoloji podcast anlatıcısı gibi oku. "
+    "Noktalama işaretlerinde doğal duraklama ve doğru Türkçe vurgu kullan; robotik okuma."
+)
 _SUPERTONIC_LOCK = Lock()
 _SUPERTONIC_ENGINE = None
 
@@ -456,6 +462,16 @@ def narrate_item(
         elif provider == "edge_tts":
             audio_bytes = _synthesize_edge_tts(ch, voice or "tr-TR-AhmetNeural")
             reported_cost = "0"
+        elif provider == "openai_tts":
+            audio_bytes = synthesize_openai_tts_chunk(
+                ch,
+                api_key=api_key,
+                voice=voice or "coral",
+                model=model or "gpt-4o-mini-tts",
+                transport=transport,
+            )
+            chars_billed += len(ch)
+            reported_cost = str(len(ch))
         else:
             raise ValueError(f"Desteklenmeyen seslendirme sağlayıcısı: {provider}")
 
@@ -512,6 +528,49 @@ def narrate_item(
         "characters_billed": chars_billed,
         "duration_sec": approx_duration,
     }
+
+
+def synthesize_openai_tts_chunk(
+    text: str,
+    *,
+    api_key: str,
+    voice: str = "coral",
+    model: str = "gpt-4o-mini-tts",
+    instructions: str = OPENAI_TTS_DEFAULT_INSTRUCTIONS,
+    base_url: str = "https://api.openai.com/v1",
+    transport: httpx.BaseTransport | None = None,
+) -> bytes:
+    """Synthesize high-naturalness Turkish MP3 via OpenAI gpt-4o-mini-tts / tts-1-hd."""
+    if not api_key:
+        raise ValueError("OpenAI API anahtarı yapılandırılmamış. Ayarlar → Çeviri sekmesinden OpenAI anahtarınızı ekleyin.")
+    chosen_voice = voice if voice in OPENAI_TTS_VOICES else "coral"
+    chosen_model = model if model in OPENAI_TTS_MODELS else "gpt-4o-mini-tts"
+    payload: dict[str, object] = {
+        "model": chosen_model,
+        "voice": chosen_voice,
+        "input": text,
+        "response_format": "mp3",
+    }
+    if chosen_model == "gpt-4o-mini-tts" and instructions:
+        payload["instructions"] = instructions
+    with httpx.Client(timeout=90.0, transport=transport) as client:
+        resp = client.post(
+            f"{base_url.rstrip('/')}/audio/speech",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+    if resp.status_code == 401:
+        raise RuntimeError("OpenAI API anahtarı geçersiz veya yetkisiz (HTTP 401).")
+    if resp.status_code in (402, 429):
+        raise RuntimeError(f"OpenAI TTS kota/bakiye sınırı aşıldı (HTTP {resp.status_code}).")
+    if resp.status_code >= 400:
+        raise RuntimeError(f"OpenAI TTS ses üretimi başarısız (HTTP {resp.status_code}).")
+    if not resp.content:
+        raise ValueError("OpenAI TTS boş ses verisi döndürdü.")
+    return resp.content
 
 
 def synthesize_edge_tts_chunk(text: str, *, voice: str = "tr-TR-AhmetNeural") -> bytes:

@@ -316,3 +316,30 @@ def test_supertonic_wav_assembly_and_provider(tmp_path, monkeypatch):
     assert aud.status_code == 200
     assert aud.headers["content-type"].startswith("audio/wav")
     assert aud.content[:4] == b"RIFF"
+
+
+def test_openai_tts_chunk_and_instructions_with_mock_transport():
+    import httpx
+    import knowledge_hub.audio_pipeline as ap
+
+    captured: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["auth"] = str(request.headers.get("authorization") or "")
+        captured["body"] = request.read().decode("utf-8")
+        return httpx.Response(200, content=ap._MOCK_MP3_FRAME * 4, headers={"content-type": "audio/mpeg"})
+
+    audio = ap.synthesize_openai_tts_chunk(
+        "Merhaba dünya",
+        api_key="sk-test-openai",
+        voice="coral",
+        model="gpt-4o-mini-tts",
+        transport=httpx.MockTransport(handler),
+    )
+    assert len(audio) > 0
+    assert captured["url"].endswith("/audio/speech")
+    assert captured["auth"] == "Bearer sk-test-openai"
+    assert "coral" in captured["body"]
+    assert "instructions" in captured["body"]
+
