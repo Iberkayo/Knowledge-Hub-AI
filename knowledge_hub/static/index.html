@@ -1,33 +1,59 @@
 <!doctype html>
-<html lang="tr" data-theme="dark">
+<html lang="tr" data-theme="light">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Knowledge Hub AI — Türkçe Teknik Kütüphane</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Knowledge Hub — Türkçe Teknik Okuyucu ve Dinleme Merkezi</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <meta name="theme-color" content="#0b0f17">
+  <meta name="theme-color" content="#F8F5EF" id="themeColorMeta">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
+  <div id="readingProgressBar" class="reading-progress-bar hidden" aria-hidden="true">
+    <div id="readingProgressFill" class="reading-progress-fill"></div>
+  </div>
+
   <div class="app-shell">
     <aside class="sidebar" aria-label="Ana menü">
       <div class="brand">
-        <div class="brand-logo" aria-hidden="true">KH</div>
-        <div>
-          <div class="brand-title">Knowledge Hub AI</div>
-          <div class="brand-sub">Türkçe Araştırma Kütüphanesi</div>
+        <img class="brand-mark" src="/icon.svg" alt="" width="28" height="28">
+        <div class="brand-copy">
+          <div class="brand-title">Knowledge Hub</div>
+          <div class="brand-sub">Okuma &amp; Dinleme</div>
         </div>
       </div>
 
-      <button class="nav-btn active" data-nav="library">📚 <span>Kütüphanem</span></button>
-      <button class="nav-btn" data-nav="discover">🧭 <span>Keşfet</span></button>
-      <button class="nav-btn" data-nav="listen">🎧 <span>Dinle</span></button>
-      <button class="nav-btn" data-nav="settings">⚙️ <span>Ayarlar</span></button>
+      <nav class="nav-list">
+        <button class="nav-btn active" data-nav="library">
+          <span class="nav-icon" data-icon="library"></span>
+          <span>Kütüphanem</span>
+        </button>
+        <button class="nav-btn" data-nav="discover">
+          <span class="nav-icon" data-icon="compass"></span>
+          <span>Keşfet</span>
+        </button>
+        <button class="nav-btn" data-nav="listen">
+          <span class="nav-icon" data-icon="headphones"></span>
+          <span>Dinle</span>
+        </button>
+        <button class="nav-btn" data-nav="settings">
+          <span class="nav-icon" data-icon="settings"></span>
+          <span>Ayarlar</span>
+        </button>
+      </nav>
 
       <div class="sidebar-footer">
-        <button id="openAddModalBtn" class="btn-primary">+ Yeni İçerik Ekle</button>
-        <button id="themeToggleBtn" class="btn-ghost btn-sm">☀️ Açık Tema</button>
+        <button id="openAddModalBtn" class="btn-primary btn-block">
+          <span class="btn-icon" data-icon="plus"></span>
+          <span>İçerik Ekle</span>
+        </button>
+        <button id="themeToggleBtn" class="btn-ghost btn-sm btn-theme">
+          <span id="themeToggleIcon" class="btn-icon" data-icon="moon"></span>
+          <span id="themeToggleLabel">Koyu Tema</span>
+        </button>
       </div>
     </aside>
 
@@ -37,7 +63,7 @@
     </main>
   </div>
 
-  <!-- Persistent Spotify-like Audio Player -->
+  <!-- Persistent Editorial Audio Dock -->
   <section id="playerBar" class="player-bar hidden" aria-label="Ses oynatıcı">
     <div class="player-info">
       <div id="playerTitle" class="player-title">—</div>
@@ -45,26 +71,35 @@
     </div>
     <div class="player-controls">
       <div class="player-buttons">
-        <button id="playerBack15" class="btn-sm" title="15 saniye geri">↺ 15sn</button>
-        <button id="playerPlay" class="btn-primary btn-sm">▶ Oynat</button>
-        <button id="playerFwd30" class="btn-sm" title="30 saniye ileri">30sn ↻</button>
+        <button id="playerBack15" class="btn-icon-only" title="15 saniye geri" aria-label="15 saniye geri">
+          <span data-icon="back15"></span><span class="skip-label">15</span>
+        </button>
+        <button id="playerPlay" class="btn-play-circle" title="Oynat / Duraklat" aria-label="Oynat"></button>
+        <button id="playerFwd30" class="btn-icon-only" title="30 saniye ileri" aria-label="30 saniye ileri">
+          <span class="skip-label">30</span><span data-icon="fwd30"></span>
+        </button>
       </div>
       <div class="player-seek-row">
-        <span id="playerCurrentTime">0:00</span>
+        <span id="playerCurrentTime" class="timecode">0:00</span>
         <input id="playerSeek" type="range" min="0" max="1000" value="0" aria-label="Oynatma konumu">
-        <span id="playerRemainingTime">0:00</span>
+        <span id="playerRemainingTime" class="timecode">0:00</span>
       </div>
     </div>
     <div class="player-extra">
-      <select id="playerSpeed" aria-label="Oynatma hızı">
-        <option value="0.75">0.75x</option>
-        <option value="1" selected>1x</option>
-        <option value="1.25">1.25x</option>
-        <option value="1.5">1.5x</option>
-        <option value="2">2x</option>
+      <select id="playerSpeed" class="speed-select" aria-label="Oynatma hızı">
+        <option value="0.75">0.75×</option>
+        <option value="1" selected>1×</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.5">1.5×</option>
+        <option value="1.75">1.75×</option>
+        <option value="2">2×</option>
       </select>
-      <button id="playerDownload" class="btn-sm" title="Ses dosyasını indir">⬇ MP3</button>
-      <button id="playerClose" class="btn-ghost btn-sm" title="Oynatıcıyı kapat">✕</button>
+      <button id="playerDownload" class="btn-ghost btn-icon-only" title="Ses dosyasını indir" aria-label="Ses dosyasını indir">
+        <span data-icon="download"></span>
+      </button>
+      <button id="playerClose" class="btn-ghost btn-icon-only" title="Oynatıcıyı kapat" aria-label="Oynatıcıyı kapat">
+        <span data-icon="x"></span>
+      </button>
     </div>
   </section>
 
@@ -72,8 +107,10 @@
   <div id="modalBackdrop" class="modal-backdrop hidden" role="dialog" aria-modal="true">
     <div class="modal-card">
       <div class="modal-head">
-        <h3 id="modalTitle" style="margin:0"></h3>
-        <button id="modalCloseBtn" class="btn-ghost btn-sm" aria-label="Kapat">✕</button>
+        <h3 id="modalTitle" class="modal-title"></h3>
+        <button id="modalCloseBtn" class="btn-ghost btn-icon-only" aria-label="Kapat">
+          <span data-icon="x"></span>
+        </button>
       </div>
       <div id="modalBody"></div>
     </div>

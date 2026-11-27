@@ -1,9 +1,10 @@
-const CACHE = "kh-shell-v5";
+const CACHE = "kh-shell-v8";
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
   "/icon.svg",
   "/static/styles.css",
+  "/static/icons.js",
   "/static/app.js",
   "/static/render.js",
   "/static/player.js",

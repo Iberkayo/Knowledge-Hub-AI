@@ -1,5 +1,6 @@
-// Persistent Spotify-like audio player with queue, Media Session API, progress sync, and transcript sync.
+// Persistent editorial audio player with queue, Media Session API, progress sync, and transcript sync.
 
+import { icon } from "./icons.js";
 import { getOfflineAudioUrl } from "./offline.js";
 
 export function formatTime(sec) {
@@ -35,6 +36,7 @@ export class PersistentPlayer {
     this.closeBtn = document.getElementById("playerClose");
 
     this._bind();
+    this._updatePlayIcon();
   }
 
   _bind() {
@@ -83,11 +85,12 @@ export class PersistentPlayer {
   }
 
   _updatePlayIcon() {
-    if (this.browserSpeechActive) {
-      this.playBtn.textContent = speechSynthesis.paused ? "▶ Devam" : "⏸ Duraklat";
-      return;
-    }
-    this.playBtn.textContent = this.audio.paused ? "▶ Oynat" : "⏸ Duraklat";
+    const isPaused = this.browserSpeechActive
+      ? (!("speechSynthesis" in window) || speechSynthesis.paused || !speechSynthesis.speaking)
+      : this.audio.paused;
+    this.playBtn.replaceChildren(icon(isPaused ? "play" : "pause", 16));
+    this.playBtn.setAttribute("aria-label", isPaused ? "Oynat" : "Duraklat");
+    this.playBtn.setAttribute("title", isPaused ? "Oynat" : "Duraklat");
   }
 
   async _syncProgress(force) {
@@ -111,8 +114,8 @@ export class PersistentPlayer {
     if (!("mediaSession" in navigator)) return;
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
-        title: item.title || "Knowledge Hub AI",
-        artist: item.author || item.audio_provider || "Knowledge Hub AI",
+        title: item.title || "Knowledge Hub",
+        artist: item.author || item.audio_provider || "Knowledge Hub",
         album: item.category || "Kütüphanem",
       });
       navigator.mediaSession.setActionHandler("play", () => this.audio.play().catch(() => {}));
@@ -170,7 +173,7 @@ export class PersistentPlayer {
     this.current = item;
     this.bar.classList.remove("hidden");
     this.titleEl.textContent = item.title;
-    this.subEl.textContent = "Tarayıcı Türkçe Seslendirme (Ücretsiz)";
+    this.subEl.textContent = "Tarayıcı Türkçe Seslendirme";
     this.dlBtn.disabled = true;
 
     const utter = new SpeechSynthesisUtterance(text);
@@ -235,5 +238,6 @@ export class PersistentPlayer {
     this.browserSpeechActive = false;
     this.current = null;
     this.bar.classList.add("hidden");
+    this._updatePlayIcon();
   }
 }

@@ -112,7 +112,10 @@ export function renderRichText(container, text) {
           }
           table.append(tr);
         });
-        container.append(table);
+        const tableWrap = document.createElement("div");
+        tableWrap.className = "table-scroll";
+        tableWrap.append(table);
+        container.append(tableWrap);
         continue;
       }
 
