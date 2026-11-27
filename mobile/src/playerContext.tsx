@@ -4,8 +4,8 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import * as Haptics from "expo-haptics";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronDown, ChevronUp, Headphones, Pause, Play, RotateCcw, RotateCw, X } from "lucide-react-native";
 
 import type { KnowledgeHubApi } from "./api";
@@ -219,7 +219,10 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
     cycleSpeed,
     stop,
   } = usePlayer();
+  const insets = useSafeAreaInsets();
   const [barWidth, setBarWidth] = useState(1);
+  const [dragTime, setDragTime] = useState<number | null>(null);
+  const dragTimeRef = useRef<number | null>(null);
 
   const transcript: TranscriptSegment[] = useMemo(() => {
     if (!currentItem?.transcript_json) return [];
@@ -231,13 +234,33 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
   }, [currentItem?.transcript_json]);
 
   if (!currentItem) return null;
-  const pct = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
-  const remaining = Math.max(0, duration - currentTime);
+  const displayTime = dragTime !== null ? dragTime : currentTime;
+  const pct = duration > 0 ? Math.min(100, Math.max(0, (displayTime / duration) * 100)) : 0;
+  const remaining = Math.max(0, duration - displayTime);
 
-  function handleScrub(e: GestureResponderEvent) {
-    if (!duration || barWidth <= 1) return;
+  function calcTimeFromEvent(e: GestureResponderEvent): number {
+    if (!duration || barWidth <= 1) return 0;
     const x = Math.max(0, Math.min(barWidth, e.nativeEvent.locationX));
-    seekTo((x / barWidth) * duration);
+    return (x / barWidth) * duration;
+  }
+
+  function handleScrubStart(e: GestureResponderEvent) {
+    const t = calcTimeFromEvent(e);
+    dragTimeRef.current = t;
+    setDragTime(t);
+  }
+
+  function handleScrubMove(e: GestureResponderEvent) {
+    const t = calcTimeFromEvent(e);
+    dragTimeRef.current = t;
+    setDragTime(t);
+  }
+
+  function handleScrubEnd(e: GestureResponderEvent) {
+    const t = dragTimeRef.current !== null ? dragTimeRef.current : calcTimeFromEvent(e);
+    dragTimeRef.current = null;
+    setDragTime(null);
+    seekTo(t);
   }
 
   return (
@@ -295,18 +318,40 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
 
       {/* Expandable Full-Screen Editorial Now Playing Sheet */}
       <Modal visible={expanded} animationType="slide" onRequestClose={() => setExpanded(false)}>
-        <SafeAreaView style={[styles.sheetRoot, { backgroundColor: palette.bg }]} edges={["top", "bottom"]}>
+        <View
+          style={[
+            styles.sheetRoot,
+            {
+              backgroundColor: palette.bg,
+              paddingTop: Math.max(insets.top, Platform.OS === "ios" ? 56 : 16),
+              paddingBottom: Math.max(insets.bottom, 16),
+            },
+          ]}
+        >
           <View style={[styles.sheetHeader, { borderBottomColor: palette.border }]}>
-            <Pressable onPress={() => setExpanded(false)} hitSlop={12} style={styles.sheetCloseBtn}>
-              <ChevronDown size={24} color={palette.text} strokeWidth={1.8} />
+            <Pressable
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                setExpanded(false);
+              }}
+              hitSlop={14}
+              style={styles.sheetCloseBtn}
+              accessibilityLabel="Oynatıcıyı küçült"
+            >
+              <ChevronDown size={24} color={palette.text} strokeWidth={1.9} />
             </Pressable>
             <Text style={[styles.sheetHeaderLabel, { color: palette.textMuted }]}>ŞİMDİ DİNLENİYOR</Text>
-            <Pressable onPress={stop} hitSlop={12} style={styles.sheetCloseBtn}>
-              <X size={20} color={palette.textMuted} strokeWidth={1.8} />
+            <Pressable
+              onPress={stop}
+              hitSlop={14}
+              style={styles.sheetCloseBtn}
+              accessibilityLabel="Oynatıcıyı kapat"
+            >
+              <X size={21} color={palette.textMuted} strokeWidth={1.9} />
             </Pressable>
           </View>
 
-          <ScrollView contentContainerStyle={styles.sheetScroll}>
+          <ScrollView scrollEnabled={dragTime === null} contentContainerStyle={styles.sheetScroll}>
             <View style={[styles.coverCard, { backgroundColor: palette.bgElevated, borderColor: palette.border }]}>
               <View style={[styles.coverIconWrap, { backgroundColor: palette.accentSoft }]}>
                 <Headphones size={26} color={palette.accent} strokeWidth={1.7} />
@@ -321,14 +366,17 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
               )}
             </View>
 
-            {/* Interactive Scrubbing Timeline */}
+            {/* Smooth 60fps Interactive Scrubbing Timeline */}
             <View style={styles.scrubberWrap}>
               <View
                 onLayout={(e) => setBarWidth(Math.max(1, e.nativeEvent.layout.width))}
                 onStartShouldSetResponder={() => true}
                 onMoveShouldSetResponder={() => true}
-                onResponderGrant={handleScrub}
-                onResponderMove={handleScrub}
+                onResponderTerminationRequest={() => false}
+                onResponderGrant={handleScrubStart}
+                onResponderMove={handleScrubMove}
+                onResponderRelease={handleScrubEnd}
+                onResponderTerminate={handleScrubEnd}
                 style={styles.scrubTouchArea}
               >
                 <View style={[styles.scrubTrack, { backgroundColor: palette.bgSubtle }]}>
@@ -340,13 +388,14 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
                         left: `${pct}%`,
                         backgroundColor: palette.accent,
                         borderColor: palette.bg,
+                        transform: [{ scale: dragTime !== null ? 1.25 : 1 }],
                       },
                     ]}
                   />
                 </View>
               </View>
               <View style={styles.timeRow}>
-                <Text style={[styles.timeText, { color: palette.textMuted }]}>{formatTime(currentTime)}</Text>
+                <Text style={[styles.timeText, { color: palette.textMuted }]}>{formatTime(displayTime)}</Text>
                 <Text style={[styles.timeText, { color: palette.textMuted }]}>-{formatTime(remaining)}</Text>
               </View>
             </View>
@@ -423,7 +472,7 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
               </View>
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
     </>
   );
@@ -501,7 +550,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  sheetCloseBtn: { padding: 4 },
+  sheetCloseBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   sheetHeaderLabel: { fontSize: 11.5, fontWeight: "700", letterSpacing: 1 },
   sheetScroll: { padding: 22, paddingBottom: 48 },
   coverCard: {
