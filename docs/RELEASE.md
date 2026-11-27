@@ -1,0 +1,4 @@
+# v0.3 offline foundation
+Run locally with pip install -e ".[test]" and python -m uvicorn knowledge_hub.server:create_app --factory --host 127.0.0.1 --port 8000.
+Optional media tools: pip install -e ".[media]". python -m knowledge_hub.media document book.epub outputs/book.txt; python -m knowledge_hub.media audio episode.mp3 outputs/episode.json --allow-download (first run downloads Whisper model; CPU inference). Import extracted text into UI. RSS parser handles saved feeds; no fetch or scheduler. ElevenLabs pilot remains separate and opt-in. No real translation or generated audio in UI.
+Remaining release blockers: secure direct URL/RSS retrieval, UI integration for media jobs and audio player, native mobile app, full provider wiring, semantic QA, live model benchmarks, credit reconciliation and deployment security. Do not expose the local server to the internet. No API key or paid calls needed for offline tests.

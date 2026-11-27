@@ -15,6 +15,10 @@ class Library:
                 kind TEXT NOT NULL, original TEXT NOT NULL, translated TEXT,
                 mode TEXT, created TEXT NOT NULL, position REAL DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'imported')""")
+            columns = {row[1] for row in db.execute("PRAGMA table_info(items)")}
+            for name, definition in (("favorite","INTEGER DEFAULT 0"),("notes","TEXT DEFAULT ''"),("category","TEXT DEFAULT ''")):
+                if name not in columns:
+                    db.execute(f"ALTER TABLE items ADD COLUMN {name} {definition}")
     def connect(self):
         db = sqlite3.connect(self.path)
         db.row_factory = sqlite3.Row
@@ -35,7 +39,7 @@ class Library:
         return dict(row)
     def list(self):
         with self.connect() as db:
-            return [dict(row) for row in db.execute("SELECT id,title,source,kind,created,status,mode,position FROM items ORDER BY created DESC")]
+            return [dict(row) for row in db.execute("SELECT id,title,source,kind,created,status,mode,position,favorite,category FROM items ORDER BY created DESC")]
     def complete(self, identifier, text, mode):
         if mode not in ('demo', 'live') or not text.strip():
             raise ValueError("Invalid translation")
@@ -54,3 +58,9 @@ class Library:
         self.get(identifier)
         with self.connect() as db:
             db.execute("DELETE FROM items WHERE id=?", (identifier,))
+    def metadata(self, identifier, favorite, notes, category):
+        self.get(identifier)
+        with self.connect() as db:
+            db.execute("UPDATE items SET favorite=?,notes=?,category=? WHERE id=?",
+                       (int(favorite),notes,category,identifier))
+        return self.get(identifier)

@@ -18,6 +18,11 @@ class ImportRequest(BaseModel):
     format: Literal["text","html","transcript"] = "text"
     content: str = Field(min_length=1,max_length=200000)
 
+class Metadata(BaseModel):
+    favorite: bool = False
+    notes: str = Field(default="",max_length=20000)
+    category: str = Field(default="",max_length=100)
+
 class Progress(BaseModel):
     position: float = Field(ge=0,le=1)
 
@@ -58,4 +63,13 @@ def create_app(db_path=None):
     def delete(identifier: str):
         lookup(identifier)
         lib.delete(identifier)
+    @app.patch("/api/items/{identifier}/metadata")
+    def metadata(identifier: str, req: Metadata):
+        lookup(identifier)
+        return lib.metadata(identifier, req.favorite, req.notes, req.category)
+    @app.get("/api/items/{identifier}/export")
+    def export(identifier: str):
+        from fastapi.responses import PlainTextResponse
+        item = lookup(identifier)
+        return PlainTextResponse(item["title"]+"\n\n"+item["original"]+"\n\n"+(item["translated"] or ""), headers={"Content-Disposition":"attachment; filename=knowledge-hub.txt"})
     return app
