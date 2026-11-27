@@ -17,7 +17,7 @@
 *Amaç: Çeviri, seslendirme, transkripsiyon ve okuma deneyiminin gerçekten her gün kullanılacak kaliteye ulaşması.*
 - **İçerik Alma:** SSRF korumalı HTTPS makale çekimi, RSS/Atom keşif beslemeleri, belge (`.pdf`, `.epub`, `.html`, `.txt`, `.srt`, `.vtt`) ve ses dosyası yükleme.
 - **Çeviri Motoru:** Paragraf/kod/denklem/sayı bütünlüğünü koruyan, terim sözlüğü destekli, üç ayrı modlu (`faithful` birebir çeviri, `explained` açıklamalı okuma, `summary` özet) çeviri + otomatik QA kontrolleri.
-- **Ses & Transkripsiyon:** Doğal Türkçe **Edge Neural TTS** (`AhmetNeural` / `EmelNeural`, ücretsiz & sınırsız MP3), çevrimdışı **Supertonic 3 ONNX** (veya isteğe bağlı RTX 6 GB GPU TTS), isteğe bağlı ElevenLabs, yerel **Faster-Whisper** GPU transkripsiyonu. Kod blokları, tablolar ve çıplak URL'ler ne çevrilir ne de seslendirilir.
+- **Ses & Transkripsiyon:** Doğal Türkçe **Edge Neural TTS** (`AhmetNeural` / `EmelNeural`, ücretsiz & sınırsız MP3 — kabul edilebilir MVP seviyesi; ileride **OpenAI `gpt-4o-mini-tts`**, **Google Gemini / Chirp 3 HD TTS**, **ElevenLabs Multilingual v2** veya yerel RTX 6 GB GPU TTS [**Chatterbox Multilingual / XTTS-v2**] ile yükseltilecek şekilde sağlayıcı katmanı soyutlanmıştır), çevrimdışı **Supertonic 3 ONNX**, yerel **Faster-Whisper** GPU transkripsiyonu. Kod blokları, tablolar ve çıplak URL'ler ne çevrilir ne de seslendirilir.
 - **Editoryal UX Yenilemesi:** "AI slop" estetiğinden uzak; sıcak kağıt/mürekkep renk sistemi, yüksek okunabilirlikli tipografi, tutarlı SVG ikonografi, sade bilgi hiyerarşisi ve dokunsal (tactile) ses oynatıcı.
 - **Çıkış Kriteri:** Gerçek makalelerde doğal Türkçe çeviri + doğal Türkçe seslendirme + Whisper GPU testi + 54+ birim test + masaüstü & 390px mobil görsel doğrulama.
 
