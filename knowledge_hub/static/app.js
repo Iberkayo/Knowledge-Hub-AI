@@ -1236,10 +1236,32 @@ function renderSettings() {
     trTestOut
   );
 
-  // 2. Narration / ElevenLabs Panel
+  // 2. Narration / Supertonic 3 & ElevenLabs Panel
   const ttsProvSel = el("select", {},
-    ...[["browser", "Tarayıcı Sesi (Ücretsiz)"], ["elevenlabs", "ElevenLabs (Premium)"], ["edge_tts", "Edge TTS (Alternatif Ücretsiz)"], ["mock", "Mock (Test)"]].map(([k, l]) =>
+    ...[
+      ["supertonic", "Supertonic 3 (Yerel · Ücretsiz · Sınırsız ⭐)"],
+      ["edge_tts", "Edge TTS (Ücretsiz Çevrimiçi)"],
+      ["browser", "Tarayıcı Sesi (Ücretsiz Anlık)"],
+      ["elevenlabs", "ElevenLabs (API Kredili)"],
+      ["mock", "Mock (Test)"],
+    ].map(([k, l]) =>
       el("option", { value: k, ...(s.tts_provider === k ? { selected: "selected" } : {}) }, l)
+    )
+  );
+  const stVoiceSel = el("select", {},
+    ...[
+      ["M1", "M1 (Erkek — Dengeli)"],
+      ["M2", "M2 (Erkek — Sakin)"],
+      ["M3", "M3 (Erkek — Net)"],
+      ["M4", "M4 (Erkek — Derin)"],
+      ["M5", "M5 (Erkek — Dinamik)"],
+      ["F1", "F1 (Kadın — Dengeli)"],
+      ["F2", "F2 (Kadın — Sıcak)"],
+      ["F3", "F3 (Kadın — Net)"],
+      ["F4", "F4 (Kadın — Sakin)"],
+      ["F5", "F5 (Kadın — Enerjik)"],
+    ].map(([k, l]) =>
+      el("option", { value: k, ...((s.supertonic_voice || "M1") === k ? { selected: "selected" } : {}) }, l)
     )
   );
   const elKeyIn = el("input", { type: "password", placeholder: sec.elevenlabs_api_key?.configured ? `Kayıtlı (${sec.elevenlabs_api_key.masked})` : "xi-api-key..." });
@@ -1268,13 +1290,14 @@ function renderSettings() {
     : null;
 
   const audioPanel = el("section", { className: "panel" },
-    el("h2", {}, "Seslendirme (ElevenLabs ve Ücretsiz Alternatifler)"),
+    el("h2", {}, "Seslendirme (Supertonic 3 Yerel, ElevenLabs ve Ücretsiz Alternatifler)"),
     el("div", { className: "form-grid", style: { marginBottom: "12px" } },
       el("div", { className: "field" }, el("label", {}, "Varsayılan Seslendirme"), ttsProvSel),
+      el("div", { className: "field" }, el("label", {}, "Supertonic 3 Ses Stili (Yerel Türkçe)"), stVoiceSel),
       el("div", { className: "field" }, el("label", {}, `ElevenLabs API Anahtarı ${sec.elevenlabs_api_key?.configured ? "✓" : ""}`), elKeyIn),
       el("div", { className: "field" }, el("label", {}, "ElevenLabs Modeli"), elModelSel),
-      el("div", { className: "field" }, el("label", {}, "Ses (Voice ID)"), elVoiceIn, voiceDropdown),
-      el("div", { className: "field" }, el("label", {}, "Yerel Karakter Güvenlik Sınırı"), elBudgetIn)
+      el("div", { className: "field" }, el("label", {}, "ElevenLabs Voice ID"), elVoiceIn, voiceDropdown),
+      el("div", { className: "field" }, el("label", {}, "ElevenLabs Karakter Sınırı"), elBudgetIn)
     ),
     el("div", { className: "actions-row" },
       el("button", {
@@ -1284,6 +1307,7 @@ function renderSettings() {
             method: "PATCH",
             body: {
               tts_provider: ttsProvSel.value,
+              supertonic_voice: stVoiceSel.value,
               elevenlabs_model: elModelSel.value,
               elevenlabs_voice_id: elVoiceIn.value.trim(),
               elevenlabs_char_budget: Number(elBudgetIn.value || 10000),
@@ -1295,6 +1319,22 @@ function renderSettings() {
           toast("Seslendirme ayarları kaydedildi.");
         },
       }, "Kaydet"),
+      el("button", {
+        className: "btn-sm",
+        onclick: async () => {
+          elStatusOut.textContent = "Supertonic 3 yerel Türkçe örnek üretiliyor...";
+          try {
+            const res = await api("/api/providers/supertonic/sample", {
+              method: "POST",
+              body: { voice: stVoiceSel.value },
+            });
+            const a = el("audio", { controls: "controls", src: res.url, style: { width: "100%" } });
+            sampleAudioWrap.replaceChildren(a);
+            a.play().catch(() => {});
+            elStatusOut.textContent = `✓ Supertonic 3 (${res.voice}) örnek ses üretildi (${res.duration_sec} sn · ücretsiz/yerel).`;
+          } catch (e) { elStatusOut.textContent = `✕ ${e.message}`; }
+        },
+      }, "🔊 Supertonic 3 Örnek Dinle"),
       el("button", {
         className: "btn-sm",
         onclick: async () => {

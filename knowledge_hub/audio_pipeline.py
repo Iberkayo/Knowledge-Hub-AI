@@ -3,13 +3,16 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import hashlib
+import io
 import json
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
+from threading import Lock
 from typing import Callable
+import wave
 
 import httpx
 
@@ -20,6 +23,9 @@ ELEVEN_MODELS = (
     {"id": "eleven_flash_v2_5", "name": "Eleven Flash v2.5 (Düşük Gecikme / Ekonomik)"},
     {"id": "eleven_multilingual_v2", "name": "Eleven Multilingual v2 (Yüksek Doğallık)"},
 )
+SUPERTONIC_VOICES = ("M1", "M2", "M3", "M4", "M5", "F1", "F2", "F3", "F4", "F5")
+_SUPERTONIC_LOCK = Lock()
+_SUPERTONIC_ENGINE = None
 
 # Minimal valid MPEG-1 Layer 3 silent frame for mock/offline testing
 _MOCK_MP3_FRAME = b"\xff\xfb\x90\x00" + b"\x00" * 413
@@ -127,6 +133,59 @@ def assemble_mp3_files(part_paths: list[Path], out_path: Path) -> Path:
             out_f.write(raw if idx == 0 else _strip_id3v2(raw))
     tmp_out.replace(out_path)
     return out_path
+
+
+def assemble_wav_files(part_paths: list[Path], out_path: Path) -> Path:
+    """Losslessly concatenate PCM WAV chunks using Python stdlib wave (no FFmpeg needed)."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if len(part_paths) == 1:
+        shutil.copyfile(part_paths[0], out_path)
+        return out_path
+    tmp_out = out_path.with_suffix(".tmp.wav")
+    with wave.open(str(part_paths[0]), "rb") as first:
+        params = first.getparams()
+        with wave.open(str(tmp_out), "wb") as out_wav:
+            out_wav.setparams(params)
+            out_wav.writeframes(first.readframes(first.getnframes()))
+            for p in part_paths[1:]:
+                with wave.open(str(p), "rb") as nxt:
+                    out_wav.writeframes(nxt.readframes(nxt.getnframes()))
+    tmp_out.replace(out_path)
+    return out_path
+
+
+def _get_supertonic_tts():
+    global _SUPERTONIC_ENGINE
+    with _SUPERTONIC_LOCK:
+        if _SUPERTONIC_ENGINE is None:
+            try:
+                from supertonic import TTS
+            except ImportError as exc:
+                raise RuntimeError("Supertonic 3 kurulu değil. Kurmak için: pip install supertonic") from exc
+            _SUPERTONIC_ENGINE = TTS(model="supertonic-3", auto_download=True)
+        return _SUPERTONIC_ENGINE
+
+
+def synthesize_supertonic_chunk(
+    text: str,
+    *,
+    voice: str = "M1",
+    speed: float = 1.05,
+    lang: str = "tr",
+) -> tuple[bytes, float]:
+    """Synthesize a Turkish/multilingual audio chunk locally on CPU via Supertonic 3 ONNX."""
+    import soundfile as sf
+
+    chosen_voice = voice if voice in SUPERTONIC_VOICES else "M1"
+    tts = _get_supertonic_tts()
+    with _SUPERTONIC_LOCK:
+        style = tts.get_voice_style(voice_name=chosen_voice)
+        wav, dur = tts.synthesize(text, voice_style=style, speed=float(speed), lang=lang)
+    buf = io.BytesIO()
+    sr = int(getattr(tts, "sample_rate", 44100))
+    sf.write(buf, wav.squeeze(), sr, format="WAV", subtype="PCM_16")
+    dur_val = float(dur[0]) if hasattr(dur, "__len__") else float(dur)
+    return buf.getvalue(), dur_val
 
 
 # --- ElevenLabs API helpers ---
@@ -304,12 +363,15 @@ def narrate_item(
     part_paths: list[Path] = []
     cache_hits = 0
     chars_billed = 0
+    is_wav = provider == "supertonic"
+    ext = ".wav" if is_wav else ".mp3"
+    fmt_tag = "wav_44100_pcm16" if is_wav else "mp3_44100_128"
 
     for idx, ch in enumerate(chunks):
         if is_cancelled and is_cancelled():
             raise RuntimeError("JOB_CANCELLED")
-        key = audio_cache_key(ch, provider, model, voice)
-        part_file = parts_dir / f"{key}.mp3"
+        key = audio_cache_key(ch, provider, model, voice, fmt=fmt_tag)
+        part_file = parts_dir / f"{key}{ext}"
 
         with lib.connect() as db:
             row = db.execute("SELECT file_path FROM audio_cache WHERE cache_key=?", (key,)).fetchone()
@@ -322,6 +384,9 @@ def narrate_item(
 
         if provider == "mock":
             audio_bytes = _MOCK_MP3_FRAME * 4
+            reported_cost = "0"
+        elif provider == "supertonic":
+            audio_bytes, _ = synthesize_supertonic_chunk(ch, voice=voice or "M1", lang="tr")
             reported_cost = "0"
         elif provider == "elevenlabs":
             if chars_billed + len(ch) > char_budget:
@@ -351,7 +416,7 @@ def narrate_item(
                     provider,
                     model,
                     voice,
-                    "mp3_44100_128",
+                    fmt_tag,
                     str(part_file),
                     len(ch),
                     reported_cost,
@@ -362,8 +427,11 @@ def narrate_item(
         if on_progress:
             on_progress(idx + 1, len(chunks), cache_hits)
 
-    final_path = lib.audio_dir / f"{item_id}-{provider}.mp3"
-    assemble_mp3_files(part_paths, final_path)
+    final_path = lib.audio_dir / f"{item_id}-{provider}{ext}"
+    if is_wav:
+        assemble_wav_files(part_paths, final_path)
+    else:
+        assemble_mp3_files(part_paths, final_path)
     approx_duration = round(sum(len(c) for c in chunks) / 14.5, 1)
 
     if chars_billed > 0:

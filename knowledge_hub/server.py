@@ -20,12 +20,14 @@ from pydantic import BaseModel, Field
 
 from knowledge_hub import __version__
 from knowledge_hub.audio_pipeline import (
+    SUPERTONIC_VOICES,
     estimate_narration_cost,
     get_elevenlabs_subscription,
     list_elevenlabs_models,
     list_elevenlabs_voices,
     narrate_item,
     synthesize_elevenlabs_chunk,
+    synthesize_supertonic_chunk,
 )
 from knowledge_hub.benchmark import RUBRIC_WEIGHTS, build_reference_lookup, evaluate as evaluate_benchmark
 from knowledge_hub.core import translate as legacy_translate
@@ -102,10 +104,20 @@ class TranslateRequest(BaseModel):
 
 
 class NarrateRequest(BaseModel):
-    provider: Literal["elevenlabs", "edge_tts", "mock"] | None = None
+    provider: Literal["supertonic", "elevenlabs", "edge_tts", "mock"] | None = None
     model: str | None = Field(default=None, max_length=120)
     voice: str | None = Field(default=None, max_length=120)
     async_job: bool = True
+
+
+class SupertonicSampleRequest(BaseModel):
+    voice: str = Field(default="M1", max_length=16)
+    speed: float = Field(default=1.05, ge=0.7, le=1.6)
+    text: str = Field(
+        default="Merhaba! Bu, Knowledge Hub AI için yerel Supertonic 3 Türkçe seslendirme testidir. Yüzde 95 güven aralığı ve model inference terimleri ücretsiz olarak seslendirilmektedir.",
+        min_length=1,
+        max_length=500,
+    )
 
 
 class TranscribeRequest(BaseModel):
@@ -344,9 +356,13 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
     def narrate_estimate(identifier: str, req: NarrateRequest):
         lookup(identifier)
         settings = lib.get_settings()
-        provider = req.provider or str(settings.get("tts_provider") or "browser")
-        model = req.model or str(settings.get("elevenlabs_model") or "eleven_flash_v2_5")
-        voice = req.voice or str(settings.get("elevenlabs_voice_id") or "default")
+        provider = req.provider or str(settings.get("tts_provider") or "supertonic")
+        if provider == "supertonic":
+            model = req.model or "supertonic-3"
+            voice = req.voice or str(settings.get("supertonic_voice") or "M1")
+        else:
+            model = req.model or str(settings.get("elevenlabs_model") or "eleven_flash_v2_5")
+            voice = req.voice or str(settings.get("elevenlabs_voice_id") or "default")
         if provider == "browser":
             return {"provider": "browser", "total_chunks": 1, "new_characters_to_bill": 0, "note": "Tarayıcı seslendirmesi ücretsiz ve anlıktır."}
         return estimate_narration_cost(lib, identifier, provider=provider, model=model, voice=voice)
@@ -355,9 +371,9 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
     def narrate_endpoint(identifier: str, req: NarrateRequest):
         lookup(identifier)
         settings = lib.get_settings()
-        provider = req.provider or str(settings.get("tts_provider") or "elevenlabs")
-        model = req.model or str(settings.get("elevenlabs_model") or "eleven_flash_v2_5")
-        voice = req.voice or str(settings.get("elevenlabs_voice_id") or "")
+        provider = req.provider or str(settings.get("tts_provider") or "supertonic")
+        model = req.model or ("supertonic-3" if provider == "supertonic" else str(settings.get("elevenlabs_model") or "eleven_flash_v2_5"))
+        voice = req.voice or (str(settings.get("supertonic_voice") or "M1") if provider == "supertonic" else str(settings.get("elevenlabs_voice_id") or ""))
         api_key = ""
         if provider == "elevenlabs":
             api_key = secrets.get("elevenlabs_api_key") or ""
@@ -365,6 +381,8 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
                 raise HTTPException(400, "ElevenLabs API anahtarı ayarlanmamış. Ayarlar sayfasından ekleyin.")
             if not voice:
                 raise HTTPException(400, "Lütfen Ayarlar sayfasından bir ElevenLabs sesi seçin.")
+        elif provider == "supertonic":
+            voice = voice if voice in SUPERTONIC_VOICES else "M1"
         elif provider == "mock":
             voice = voice or "mock-tr"
         elif provider == "edge_tts":
@@ -825,14 +843,26 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
         except Exception as exc:
             raise HTTPException(422, str(exc))
 
+    @app.post("/api/providers/supertonic/sample")
+    def api_supertonic_sample(req: SupertonicSampleRequest):
+        try:
+            audio_bytes, dur = synthesize_supertonic_chunk(req.text, voice=req.voice, speed=req.speed, lang="tr")
+            sample_name = f"sample-{hashlib.sha256(('st3' + req.voice + str(req.speed) + req.text).encode()).hexdigest()[:12]}.wav"
+            sample_path = lib.audio_dir / sample_name
+            sample_path.write_bytes(audio_bytes)
+            return {"url": f"/api/audio-samples/{sample_name}", "voice": req.voice, "duration_sec": round(dur, 2)}
+        except Exception as exc:
+            raise HTTPException(422, str(exc))
+
     @app.get("/api/audio-samples/{filename}")
     def api_get_sample(filename: str):
-        if not re.fullmatch(r"sample-[a-f0-9]{12}\.mp3", filename):
+        if not re.fullmatch(r"sample-[a-f0-9]{12}\.(mp3|wav)", filename):
             raise HTTPException(404, "Örnek ses bulunamadı")
         fp = lib.audio_dir / filename
         if not fp.is_file():
             raise HTTPException(404, "Örnek ses dosyası bulunamadı")
-        return FileResponse(fp, media_type="audio/mpeg")
+        media_type = "audio/wav" if filename.endswith(".wav") else "audio/mpeg"
+        return FileResponse(fp, media_type=media_type)
 
     @app.get("/api/providers/whisper/status")
     def api_whisper_status():

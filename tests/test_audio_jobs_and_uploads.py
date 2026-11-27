@@ -282,3 +282,37 @@ def test_epub_safe_zip_member_allows_normal_and_blocks_traversal():
     ):
         with pytest.raises(ValueError, match="Unsafe path inside EPUB archive"):
             _safe_zip_member(base_dir, href)
+
+
+def test_supertonic_wav_assembly_and_provider(tmp_path, monkeypatch):
+    import io
+    import wave
+    import knowledge_hub.audio_pipeline as ap
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(22050)
+        w.writeframes(b"\x00\x00" * 1000)
+    fake_wav = buf.getvalue()
+
+    monkeypatch.setattr(ap, "synthesize_supertonic_chunk", lambda text, **kw: (fake_wav, 0.1))
+
+    client = TestClient(create_app(tmp_path / "st.sqlite3", secrets_path=tmp_path / ".secrets.json"))
+    item = client.post(
+        "/api/items",
+        json={"title": "Supertonic Test", "content": "İlk paragraf.\n\nİkinci paragraf."},
+    ).json()
+
+    nar = client.post(
+        f"/api/items/{item['id']}/narrate",
+        json={"provider": "supertonic", "voice": "M1", "async_job": False},
+    )
+    assert nar.status_code == 200
+    assert nar.json()["audio_path"].endswith(".wav")
+
+    aud = client.get(f"/api/items/{item['id']}/audio")
+    assert aud.status_code == 200
+    assert aud.headers["content-type"].startswith("audio/wav")
+    assert aud.content[:4] == b"RIFF"

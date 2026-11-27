@@ -15,7 +15,7 @@ dependencies = [
 [project.optional-dependencies]
 media = ["faster-whisper>=1.1,<2", "pypdf>=5,<7", "defusedxml>=0.7,<1"]
 ai = ["openai>=1.66,<3"]
-tts = ["edge-tts>=7,<8"]
+tts = ["supertonic>=1.3", "edge-tts>=7,<8"]
 test = ["pytest>=8,<10", "httpx>=0.27,<1"]
 [project.scripts]
 knowledge-hub = "knowledge_hub.cli:main"
