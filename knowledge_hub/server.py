@@ -23,11 +23,14 @@ class Metadata(BaseModel):
     notes: str = Field(default="",max_length=20000)
     category: str = Field(default="",max_length=100)
 
+class FeedRequest(BaseModel):
+    xml: str = Field(min_length=1,max_length=2000000)
+
 class Progress(BaseModel):
     position: float = Field(ge=0,le=1)
 
 def create_app(db_path=None):
-    app = FastAPI(title="Knowledge Hub AI", version="0.2.0")
+    app = FastAPI(title="Knowledge Hub AI", version="0.4.0")
     lib = Library(db_path or os.getenv("KH_DB", "outputs/library.sqlite3"))
     def lookup(identifier):
         try:
@@ -72,4 +75,20 @@ def create_app(db_path=None):
         from fastapi.responses import PlainTextResponse
         item = lookup(identifier)
         return PlainTextResponse(item["title"]+"\n\n"+item["original"]+"\n\n"+(item["translated"] or ""), headers={"Content-Disposition":"attachment; filename=knowledge-hub.txt"})
+    @app.get("/manifest.webmanifest")
+    def manifest():
+        return FileResponse(Path(__file__).parent / "static" / "manifest.webmanifest", media_type="application/manifest+json")
+    @app.get("/sw.js")
+    def worker():
+        return FileResponse(Path(__file__).parent / "static" / "sw.js", media_type="application/javascript")
+    @app.get("/icon.svg")
+    def icon():
+        return FileResponse(Path(__file__).parent / "static" / "icon.svg", media_type="image/svg+xml")
+    @app.post("/api/feed/parse")
+    def feed(req: FeedRequest):
+        from knowledge_hub.feed import parse_feed
+        try:
+            return parse_feed(req.xml)
+        except Exception:
+            raise HTTPException(422,"Invalid or unsupported feed")
     return app

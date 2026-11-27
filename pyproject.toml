@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "knowledge-hub-ai"
-version = "0.3.0"
+version = "0.4.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1"]
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "defusedxml>=0.7,<1"]
 [project.optional-dependencies]
 media = ["faster-whisper>=1.1,<2", "pypdf>=5,<7", "defusedxml>=0.7,<1"]
 ai = ["openai>=1.66,<3"]
@@ -15,4 +15,4 @@ knowledge-hub = "knowledge_hub.cli:main"
 [tool.setuptools.packages.find]
 include = ["knowledge_hub*"]
 [tool.setuptools.package-data]
-knowledge_hub = ["static/*.html"]
+knowledge_hub = ["static/*"]
