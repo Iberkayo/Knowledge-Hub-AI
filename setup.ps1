@@ -22,6 +22,9 @@ Write-Host ""
 
 function Find-Python311 {
     $candidates = @(
+        @{ Cmd = "py"; Args = @("-3.12") },
+        @{ Cmd = "py"; Args = @("-3.11") },
+        @{ Cmd = "py"; Args = @("-3.13") },
         @{ Cmd = "py"; Args = @("-3") },
         @{ Cmd = "python"; Args = @() },
         @{ Cmd = "python3"; Args = @() }
@@ -93,15 +96,15 @@ try {
 }
 
 $fullInstallOk = $false
-Write-Host "  Tam paket seti kuruluyor: pip install -e "".[test,media,ai]"""
-& $venvPython -m pip install -e ".[test,media,ai]"
+Write-Host "  Tam paket seti kuruluyor: pip install -e "".[test,tts,media,ai]"""
+& $venvPython -m pip install -e ".[test,tts,media,ai]"
 if ($LASTEXITCODE -eq 0) {
     $fullInstallOk = $true
-    Write-Host "  Tam kurulum (test, media, ai) başarıyla tamamlandı." -ForegroundColor Green
+    Write-Host "  Tam kurulum (test, tts, media, ai) başarıyla tamamlandı." -ForegroundColor Green
 } else {
     Write-Host ""
-    Write-Host "UYARI: Tam kurulum (.[test,media,ai]) sırasında bir hata oluştu." -ForegroundColor DarkYellow
-    Write-Host "  (Örneğin Faster-Whisper veya medya bileşenleri için ek sistem araçları gerekebilir.)" -ForegroundColor DarkYellow
+    Write-Host "UYARI: Tam kurulum (.[test,tts,media,ai]) sırasında bir hata oluştu." -ForegroundColor DarkYellow
+    Write-Host "  (Örneğin Faster-Whisper, Supertonic veya medya bileşenleri için ek sistem araçları gerekebilir.)" -ForegroundColor DarkYellow
     Write-Host "  Temel kurulum ile devam ediliyor: pip install -e "".[test]""" -ForegroundColor Yellow
     & $venvPython -m pip install -e ".[test]"
     if ($LASTEXITCODE -ne 0) {
@@ -109,7 +112,7 @@ if ($LASTEXITCODE -eq 0) {
         exit 1
     }
     Write-Host "  Temel kurulum (.[test]) başarıyla tamamlandı." -ForegroundColor Green
-    Write-Host "  Not: Daha sonra medya/AI paketlerini eklemek için '.\.venv\Scripts\python.exe -m pip install -e "".[media,ai]""' komutunu çalıştırabilirsiniz." -ForegroundColor DarkYellow
+    Write-Host "  Not: Daha sonra TTS/medya/AI paketlerini eklemek için '.\.venv\Scripts\python.exe -m pip install -e "".[tts,media,ai]""' komutunu çalıştırabilirsiniz." -ForegroundColor DarkYellow
 }
 
 # 4. FFmpeg kontrolü (kurulumu durdurmaz)
