@@ -1,4 +1,4 @@
-# Handoff — 2026-11-27 21:10 — Antigravity (Home PC w/ RTX 3050 6GB)
+# Handoff — 2026-11-27 21:17 — Antigravity (Home PC w/ RTX 3050 6GB)
 
 ## Goal
 Complete **Phase 1 (v0.5)** live validation & editorial UX overhaul on `feat/mvp-foundation` (PR #1), following the locked 3-phase roadmap toward a public **iOS App Store** release (Expo/React Native thin client + FastAPI backend).
@@ -9,29 +9,35 @@ Complete **Phase 1 (v0.5)** live validation & editorial UX overhaul on `feat/mvp
 - **Checkpoint 1 (`062bdad` — Scope, Architecture & Anti-AI-Slop UX Constitution Locked):**
   - Locked 3-phase iOS App Store roadmap in `docs/SCOPE.md`.
   - Created `docs/ARCHITECTURE.md` defining API-first boundaries, v0.6/v1.0 bridges, and the Anti-AI-Slop Editorial UX Constitution.
-- **Checkpoint 2 (Python 3.11 `.venv` Setup & Core Verification):**
-  - Updated `setup.ps1` to prefer Python 3.12/3.11/3.13 before generic `py -3` (avoiding Python 3.14 wheel conflicts) and to install `.[test,tts,media,ai]`.
-  - Created `.venv` with Python 3.11.0 and installed all extras cleanly (`supertonic==1.3.1`, `onnxruntime==1.32.0`, `faster-whisper==1.2.1`, `ctranslate2==4.9.1`, `av==18.1.1`, `openai==2.54.0`, `edge-tts==7.3.1`, `pypdf==6.21.4`, `pytest==9.2.0`).
-  - Verified **54/54 pytest tests passing** (`5.93s`), offline benchmark smoke test passing, and `ctranslate2.get_cuda_device_count() == 1` (RTX 3050 6GB detected).
+- **Checkpoint 2 (`f28462a` — Python 3.11 `.venv` Setup & Core Verification):**
+  - Updated `setup.ps1` to prefer Python 3.12/3.11/3.13 and install `.[test,tts,media,ai]`.
+  - Verified Python 3.11.0 `.venv`, 54/54 pytest tests, and offline benchmark smoke test.
+- **Checkpoint 3 (Live Supertonic 3, Faster-Whisper RTX 3050 CUDA & Live Extraction):**
+  - Updated `knowledge_hub/media.py` with `_register_nvidia_dll_dirs()` and `_cuda_runtime_ready()` so Windows pip-installed CUDA 12 runtime DLLs (`nvidia-cublas-cu12`, `nvidia-cudnn-cu12`) are discovered automatically by `ctranslate2` without requiring a 2.5 GB PyTorch install.
+  - Verified `whisper_status()` reports `cuda_available: True`, `recommended_device: "cuda"`.
+  - Live-tested **Supertonic 3 ONNX (`lang="tr"`)**: downloaded model (`26/26` files), synthesized `14.56s` (`M1`) and `6.97s` warm (`F1`, `5.04s` wall — faster than real-time on CPU). Sample saved at `outputs/checkpoint3_supertonic_sample.wav`.
+  - Live-tested **Faster-Whisper on RTX 3050 CUDA `float16`**: transcribed the `14.56s` Turkish audio in `2.22s` (with bundled `PyAV`, no `ffmpeg` needed for WAV).
+  - Live-tested SSRF-safe article extraction: `hamel.dev/evals/` (`0.57s`, 3931 words, title + author) and `felixrieseberg.com` (`0.38s`, 2217 words, title + author).
+  - Re-verified **54/54 pytest tests passing**.
 
 ## In progress
-- **Checkpoint 3 (Current):** Live testing **Supertonic 3** Turkish TTS synthesis & audio quality, **Faster-Whisper** CUDA transcription readiness on RTX 3050, and live article extraction + OpenRouter translation readiness.
+- **Checkpoint 4 (Current):** Executing the **Anti-AI-Slop Editorial UX Overhaul** per `docs/ARCHITECTURE.md` across `knowledge_hub/static/` (`index.html`, `styles.css`, `app.js`, `player.js`, `icon.svg`, `manifest.webmanifest`, `sw.js`), followed by desktop + mobile (`390px`) browser verification.
 
 ## Next steps
-1. **Checkpoint 3:** Run live Supertonic 3 Turkish TTS sample synthesis (verifies model download + synthesis speed + WAV validity), verify Faster-Whisper CUDA transcription on a generated Turkish audio sample (end-to-end TTS -> Whisper roundtrip!), and verify live `hamel.dev/evals/` extraction. Commit & push checkpoint.
-2. **Checkpoint 4:** Execute **Editorial UX Overhaul** per `docs/ARCHITECTURE.md` (warm paper/ink palette, zero emoji UI chrome, clean inline SVG icon set, editorial library list, distraction-free reader with top scroll progress bar, quiet tabbed settings, fix search-input focus bug, bump `sw.js` cache to `kh-shell-v6`). Verify visually in browser (desktop + 390px iOS viewport), run full `pytest`, commit & push.
-3. **User Live Acceptance:** User tests live OpenRouter API translation + listens to Supertonic 3 output in browser at `http://127.0.0.1:8000` and decides if RTX 3050 GPU TTS (Chatterbox / F5-TTS) is needed before Phase 2.
+1. **Checkpoint 4:** Implement the Editorial UX Overhaul (warm paper/ink light & warm charcoal dark themes, zero emoji UI chrome, clean inline SVG icons, calm editorial library list replacing cluttered badge cards, distraction-free reader with top scroll progress bar + compact `Aa` typography popover + overflow menu, tabbed settings, fix search-input focus bug, bump `sw.js` to `kh-shell-v6`). Start local server, visually inspect desktop + 390px mobile via browser subagent, re-run `pytest`, commit & push.
+2. **User Live Acceptance:** User opens `http://127.0.0.1:8000`, enters OpenRouter API key in **Ayarlar**, tests real Turkish translation & listens to Supertonic 3 audio quality, and decides if local RTX 3050 GPU TTS (Chatterbox / F5-TTS) is needed before Phase 2.
+3. **Phase 2 (v0.6):** Add optional `KH_API_TOKEN` Bearer auth + HTTP `Range` (`206`) audio streaming + Tailscale HTTPS mobile testing on iPhone.
 
 ## Decisions & why
-- **Locked iOS App Store target (Expo / React Native thin client + FastAPI backend)** — User has Apple Developer account; EAS Build supports iOS builds from Windows while sharing the FastAPI backend.
+- **Locked iOS App Store target (Expo / React Native thin client + FastAPI backend)** — User has Apple Developer account; EAS Build enables iOS TestFlight/App Store builds from Windows while sharing FastAPI.
 - **Anti-AI-Slop Editorial UX** — Crafted warm paper/ink editorial design (Readwise Reader / Matter / Apple Books feel), zero emoji chrome, pure SVG icons.
-- **Python 3.11 for `.venv`** — Verified clean wheel install for `supertonic`, `onnxruntime`, `faster-whisper`, and `ctranslate2` with CUDA detection.
-- **Frequent checkpoint handoffs + GitHub pushes** — Commit & push after every milestone on `feat/mvp-foundation` (never merge to `main`).
+- **CUDA 12 DLL wheels (`nvidia-cublas-cu12`, `nvidia-cudnn-cu12`) instead of full PyTorch** — Enables RTX 3050 `float16` Faster-Whisper cleanly in `.venv` with half the footprint.
+- **Never merge to `main`** — Keep all commits on `feat/mvp-foundation` until user explicitly approves merge.
 
 ## Gotchas
-- `ffmpeg` is not on PATH yet, though `PyAV` (`av==18.1.1`) bundled with `faster-whisper` handles audio decoding in-process! Verify whether CUDA cuDNN DLLs are needed when running `faster-whisper` on `cuda` `float16`.
-- Service Worker cache (`knowledge_hub/static/sw.js`) must be bumped (`kh-shell-v6`) after frontend UX overhaul.
-- API keys (`outputs/.secrets.json`) are machine-local DPAPI encrypted and gitignored; user enters OpenRouter key in **Ayarlar** on this PC.
+- `ffmpeg` is not on PATH yet (WAV works via `PyAV`/stdlib `wave`, MP3/M4A podcasts may benefit from `winget install Gyan.FFmpeg` if needed).
+- Service Worker cache (`knowledge_hub/static/sw.js`) must be bumped (`kh-shell-v6`) when updating frontend assets.
+- API keys (`outputs/.secrets.json`) are machine-local DPAPI encrypted and gitignored.
 
 ## How to verify
 ```powershell

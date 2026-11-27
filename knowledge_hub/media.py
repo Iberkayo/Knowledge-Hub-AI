@@ -2,13 +2,69 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 from importlib.util import find_spec
 import json
+import os
 from pathlib import Path
 import posixpath
 import shutil
+import sys
 import zipfile
 from html.parser import HTMLParser
+
+
+def _register_nvidia_dll_dirs() -> None:
+    """Expose pip-installed nvidia/*/bin CUDA DLLs on Windows for ctranslate2/Faster-Whisper."""
+    if os.name != "nt":
+        return
+    try:
+        site_roots = [Path(p) for p in sys.path if p and "site-packages" in p.lower()]
+        for root in site_roots:
+            nvidia_dir = root / "nvidia"
+            if not nvidia_dir.is_dir():
+                continue
+            for bin_dir in nvidia_dir.glob("*/bin"):
+                if not bin_dir.is_dir():
+                    continue
+                bin_str = str(bin_dir)
+                if hasattr(os, "add_dll_directory"):
+                    try:
+                        os.add_dll_directory(bin_str)
+                    except OSError:
+                        pass
+                if bin_str.lower() not in os.environ.get("PATH", "").lower():
+                    os.environ["PATH"] = bin_str + os.pathsep + os.environ.get("PATH", "")
+    except Exception:
+        pass
+
+
+def _cuda_runtime_ready() -> bool:
+    """Check whether ctranslate2/Faster-Whisper can actually execute on a CUDA GPU."""
+    _register_nvidia_dll_dirs()
+    if find_spec("ctranslate2") is not None:
+        try:
+            import ctranslate2
+
+            if int(ctranslate2.get_cuda_device_count()) > 0:
+                if os.name == "nt":
+                    # ctranslate2 CUDA 12 wheels require cublas64_12.dll at runtime
+                    try:
+                        ctypes.WinDLL("cublas64_12.dll")
+                        return True
+                    except OSError:
+                        return False
+                return True
+        except Exception:
+            pass
+    if find_spec("torch") is not None:
+        try:
+            import torch
+
+            return bool(torch.cuda.is_available())
+        except Exception:
+            return False
+    return False
 
 
 class TextParser(HTMLParser):
@@ -87,13 +143,7 @@ def whisper_status() -> dict[str, object]:
     fw_installed = find_spec("faster_whisper") is not None
     pypdf_installed = find_spec("pypdf") is not None
     ffmpeg_path = shutil.which("ffmpeg")
-    cuda_available = False
-    if find_spec("torch") is not None:
-        try:
-            import torch
-            cuda_available = bool(torch.cuda.is_available())
-        except Exception:
-            cuda_available = False
+    cuda_available = _cuda_runtime_ready()
     return {
         "faster_whisper_installed": fw_installed,
         "pypdf_installed": pypdf_installed,
@@ -111,11 +161,12 @@ def transcribe(
     device: str = "cpu",
     language: str | None = None,
 ) -> dict[str, object]:
+    _register_nvidia_dll_dirs()
     from faster_whisper import WhisperModel
 
     resolved_device = device
     if device == "auto":
-        resolved_device = "cuda" if whisper_status()["cuda_available"] else "cpu"
+        resolved_device = "cuda" if _cuda_runtime_ready() else "cpu"
     compute_type = "float16" if resolved_device == "cuda" else "int8"
     engine = WhisperModel(
         model,
