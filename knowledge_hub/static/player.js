@@ -10,6 +10,13 @@ export function formatTime(sec) {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
+function _mediaUrl(path) {
+  let tok = "";
+  try { tok = localStorage.getItem("kh_api_token") || ""; } catch { tok = ""; }
+  if (!tok) return path;
+  return `${path}${path.includes("?") ? "&" : "?"}token=${encodeURIComponent(tok)}`;
+}
+
 export class PersistentPlayer {
   constructor({ onTimeUpdate, onQueueChange, onToast }) {
     this.audio = new Audio();
@@ -53,7 +60,7 @@ export class PersistentPlayer {
     };
     this.dlBtn.onclick = () => {
       if (this.current?.id && !this.browserSpeechActive) {
-        window.location.href = `/api/items/${this.current.id}/audio`;
+        window.location.href = _mediaUrl(`/api/items/${this.current.id}/audio`);
       }
     };
     this.closeBtn.onclick = () => this.stop();
@@ -97,9 +104,13 @@ export class PersistentPlayer {
     if (!this.current?.id || this.browserSpeechActive) return;
     if (!force && this.audio.paused) return;
     try {
+      const headers = { "Content-Type": "application/json" };
+      let tok = "";
+      try { tok = localStorage.getItem("kh_api_token") || ""; } catch { tok = ""; }
+      if (tok) headers["Authorization"] = `Bearer ${tok}`;
       await fetch(`/api/items/${this.current.id}/audio-progress`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           position_sec: this.audio.currentTime || 0,
           duration_sec: this.audio.duration || this.current.audio_duration_sec || 0,
@@ -136,7 +147,7 @@ export class PersistentPlayer {
     this.subEl.textContent = `${item.author || item.kind} · ${item.audio_provider || "Ses"}`;
     this.dlBtn.disabled = false;
 
-    let src = `/api/items/${item.id}/audio`;
+    let src = _mediaUrl(`/api/items/${item.id}/audio`);
     if (preferOffline) {
       try {
         const offlineUrl = await getOfflineAudioUrl(item.id);

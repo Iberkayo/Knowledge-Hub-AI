@@ -60,13 +60,57 @@ function toast(msg) {
   toastTimer = setTimeout(() => toastEl.classList.add("hidden"), 3800);
 }
 
+function getApiToken() {
+  try { return localStorage.getItem("kh_api_token") || ""; } catch { return ""; }
+}
+
+function setApiToken(tok) {
+  try {
+    if (tok) localStorage.setItem("kh_api_token", tok);
+    else localStorage.removeItem("kh_api_token");
+  } catch { /* ignore */ }
+}
+
+function withMediaToken(url) {
+  const tok = getApiToken();
+  if (!tok) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(tok)}`;
+}
+
+let authPromptOpen = false;
+function promptForApiToken() {
+  if (authPromptOpen) return;
+  authPromptOpen = true;
+  const tokIn = el("input", { type: "password", placeholder: "KH_API_TOKEN değerini girin" });
+  const box = el("div", {},
+    el("p", {}, "Bu sunucu uzak erişim korumasıyla (KH_API_TOKEN) çalışıyor. Devam etmek için erişim belirtecini girin."),
+    el("div", { className: "field", style: { marginBottom: "14px" } }, el("label", {}, "Erişim Belirteci"), tokIn),
+    el("button", {
+      className: "btn-primary",
+      onclick: async () => {
+        if (!tokIn.value.trim()) return toast("Belirteç boş olamaz.");
+        setApiToken(tokIn.value.trim());
+        authPromptOpen = false;
+        closeModal();
+        await Promise.all([loadLibrary(), loadSettingsData().catch(() => {})]);
+        renderCurrentView();
+        toast("Bağlantı doğrulandı.");
+      },
+    }, "Bağlan")
+  );
+  openModal("Sunucu Erişim Belirteci", box);
+}
+
 async function api(path, { method = "GET", body, isForm = false } = {}) {
-  const opts = { method };
+  const headers = {};
+  const tok = getApiToken();
+  if (tok) headers["Authorization"] = `Bearer ${tok}`;
+  const opts = { method, headers };
   if (body !== undefined) {
     if (isForm) {
       opts.body = body;
     } else {
-      opts.headers = { "Content-Type": "application/json" };
+      headers["Content-Type"] = "application/json";
       opts.body = JSON.stringify(body);
     }
   }
@@ -74,7 +118,11 @@ async function api(path, { method = "GET", body, isForm = false } = {}) {
   try {
     resp = await fetch(path, opts);
   } catch {
-    throw new Error("Yerel sunucuya (127.0.0.1:8000) ulaşılamıyor. Lütfen start.bat veya start.ps1 penceresinin açık olduğundan emin olun.");
+    throw new Error("Yerel sunucuya ulaşılamıyor. Lütfen sunucunun açık olduğundan emin olun.");
+  }
+  if (resp.status === 401) {
+    promptForApiToken();
+    throw new Error("Erişim belirteci gerekli veya geçersiz (401).");
   }
   if (!resp.ok) {
     let detail = `İşlem başarısız (${resp.status})`;

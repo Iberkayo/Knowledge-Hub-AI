@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from knowledge_hub import __version__
+from knowledge_hub.auth import ApiTokenMiddleware
 from knowledge_hub.audio_pipeline import (
     EDGE_TTS_VOICES,
     SUPERTONIC_VOICES,
@@ -224,13 +225,18 @@ def _resolve_translator(lib: Library, secrets: SecretStore, provider: str | None
     raise ValueError(f"Desteklenmeyen sağlayıcı: {prov}")
 
 
-def create_app(db_path: str | Path | None = None, secrets_path: str | Path | None = None) -> FastAPI:
+def create_app(
+    db_path: str | Path | None = None,
+    secrets_path: str | Path | None = None,
+    api_token: str | None = None,
+) -> FastAPI:
     resolved_db = Path(db_path or os.getenv("KH_DB", "outputs/library.sqlite3"))
     lib = Library(resolved_db)
     resolved_secrets = Path(secrets_path) if secrets_path else (resolved_db.parent / ".secrets.json")
     secrets = SecretStore(resolved_secrets)
     jobs = JobManager(lib)
     static_dir = Path(__file__).parent / "static"
+    resolved_token = (api_token if api_token is not None else os.getenv("KH_API_TOKEN", "")).strip()
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -238,8 +244,14 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
         jobs.shutdown()
 
     app = FastAPI(title="Knowledge Hub AI", version=__version__, lifespan=lifespan)
+    if resolved_token:
+        app.add_middleware(ApiTokenMiddleware, token=resolved_token)
     if static_dir.is_dir():
         app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    @app.get("/api/health")
+    def api_health():
+        return {"status": "ok", "version": __version__, "auth_required": bool(resolved_token)}
 
     def lookup(identifier: str) -> dict[str, object]:
         try:

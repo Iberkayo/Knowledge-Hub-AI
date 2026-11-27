@@ -1,39 +1,35 @@
-# Handoff — 2026-11-27 21:52 — Antigravity (Home PC w/ RTX 3050 6GB)
+# Handoff — 2026-11-27 22:05 — Antigravity (Home PC w/ RTX 3050 6GB)
 
 ## Goal
-Complete **Phase 1 (v0.5)** live quality acceptance & editorial UX on `feat/mvp-foundation` (PR #1), following the locked 3-phase roadmap toward a public **iOS App Store** release (Expo/React Native thin client + FastAPI backend).
+Build **Phase 2 (v0.6)** on `feat/mvp-foundation` (PR #1): Mobile/iPhone API readiness (Tailscale HTTPS + Bearer auth + HTTP 206 Range audio streaming), YouTube transcript import, and NotebookLM-style 2-speaker Turkish podcast generation — preparing the shared backend for **Phase 3 (iOS App Store via Expo/React Native)**.
 
 ## Done
-- **Checkpoints 1–4 (`062bdad`, `f28462a`, `a8038c7`, `22ec73d`):**
+- **Phase 1 Accepted (Checkpoints 1–5: `062bdad`, `f28462a`, `a8038c7`, `22ec73d`, `714ca97`):**
   - Locked 3-phase iOS App Store scope (`docs/SCOPE.md`) & API-first architecture + Anti-AI-Slop Editorial UX Constitution (`docs/ARCHITECTURE.md`).
-  - Python 3.11 `.venv` with `supertonic`, `edge-tts`, `faster-whisper`, RTX 3050 CUDA 12 runtime DLLs (`cuda_available: True`).
-  - Complete Editorial UX Overhaul (warm paper/ink themes, pure SVG icons, calm reading list, distraction-free reader + `Aa` popover, 5-tab settings, desktop + mobile `390px` verified).
-- **Checkpoint 5 (Natural Turkish TTS, Fluent Translation Prompt, Code-Skipping & Reader Bar Fix):**
-  - **Fixed `.reader-bar` / `#jobsBanner` overlap:** Removed negative top margin on `.reader-bar` in `knowledge_hub/static/styles.css` so active job banners never overlap the reader toolbar.
-  - **Fixed robotic/foreign-accent TTS:** Switched default TTS provider to **Edge Neural TTS** (`tr-TR-AhmetNeural` / `tr-TR-EmelNeural` — native Turkish accent, free, unlimited, 27× smaller MP3 than Supertonic WAV), added `edge_tts_voice` setting, `POST /api/providers/edge-tts/sample`, Settings UI voice picker + preview button, and provider-aware re-narration ("Yeniden Seslendir" in reader menu + automatic prompt when TTS provider changes).
-  - **Skipped code/tables/URLs in narration:** Updated `clean_narration_text()` in `knowledge_hub/audio_pipeline.py` to completely omit fenced code blocks, display math, markdown tables, raw URLs, and code-like inline tokens instead of reading them aloud.
-  - **Upgraded Turkish translation fluency (`PROMPT_VERSION = "v2.1"`):** Rewrote `SYSTEM_PROMPTS["faithful"]` in `knowledge_hub/translation.py` for natural, non-translationese native Turkish while strictly preserving code, CLI commands, URLs, equations, and proper/library/product names verbatim. Added 1-click OpenRouter model presets (`google/gemini-2.5-flash`, `anthropic/claude-sonnet-4`, `openai/gpt-4.1-mini`) and "leave Turkish blank to preserve verbatim" workflow in Glossary.
-  - **Roadmap updated:** Added **YouTube/Video → Transkript → NotebookLM-style 2-speaker Turkish Podcast ("Audio Overview")** and optional **DeepL API** provider to `docs/SCOPE.md` (Phase 2).
-  - Bumped `sw.js` cache to `kh-shell-v9` and verified all 54 pytest tests passing.
+  - Python 3.11 `.venv` with Edge Neural TTS (`tr-TR-AhmetNeural` / `tr-TR-EmelNeural`, accepted by user), Supertonic 3 offline ONNX, Faster-Whisper RTX 3050 CUDA `float16`, warm paper/ink editorial UI verified on desktop & 390px iPhone viewport.
+- **Checkpoint 6 (Mobile API Readiness — Auth, HTTP 206 Range Audio & Tailscale Guide):**
+  - Added constant-time Bearer token middleware (`knowledge_hub/auth.py`), activated only when `KH_API_TOKEN` is set; leaves loopback `127.0.0.1` frictionless when unset.
+  - Added `GET /api/health` (public liveness + `auth_required` probe) and scoped `?token=` query auth strictly to GET audio/export/backup routes so iOS Safari `<audio>` and downloads work over Tailscale.
+  - Updated `knowledge_hub/static/app.js` and `player.js` with `localStorage` Bearer token prompt/header/media-token support (`sw.js` -> `kh-shell-v10`).
+  - Added `docs/MOBILE_ACCESS.md` step-by-step Turkish Tailscale HTTPS + iPhone PWA setup guide.
+  - Added `tests/test_mobile_api.py` verifying Bearer auth (`401`/`200`), scoped query token, and **HTTP `206 Partial Content` (`Range: bytes=0-99`)** audio streaming (56/56 tests passing).
 
 ## In progress
-- **User Live Re-test:** Local server restarted on `http://127.0.0.1:8000`. User to hard-refresh (`Ctrl+F5`), preview **Edge Neural TTS (Ahmet/Emel)** in **Ayarlar → Seslendirme**, and test natural Turkish translation with `google/gemini-2.5-flash` or `anthropic/claude-sonnet-4` on `Your AI Product Needs Evals`.
+- **Checkpoint 7 (Next):** YouTube URL → timestamped transcript import (`knowledge_hub/youtube.py` + `POST /api/import-youtube` + UI integration inside "İçerik Ekle" modal).
 
 ## Next steps
-1. User confirms Turkish translation + Edge Neural TTS quality (and decides whether to also add **DeepL** or local GPU TTS).
-2. **Phase 2 (v0.6):**
-   - YouTube / Video URL → transcript (`youtube-transcript-api` + `yt-dlp` / Faster-Whisper CUDA) → Turkish translation → **NotebookLM-style 2-speaker Turkish Podcast** (Ahmet + Emel MP3).
-   - Optional `KH_API_TOKEN` Bearer auth + HTTP `206 Partial Content` (`Range`) audio streaming + Tailscale HTTPS daily dogfooding on iPhone.
-3. **Phase 3 (v1.0):** Expo (React Native) native iOS app (Share Extension + `react-native-track-player` + offline bundle) → Apple App Store via EAS Build.
+1. **Checkpoint 7:** Install `youtube-transcript-api` into `.venv` & `pyproject.toml`, implement `knowledge_hub/youtube.py` (parse `youtube.com/watch?v=`, `youtu.be/`, `shorts/` IDs, fetch title/channel via safe HTTPS oEmbed + transcript with timestamps, clean paragraph grouping + `transcript_json`), expose `POST /api/import-youtube` (and auto-detect YouTube URLs inside `POST /api/import-url`!), add offline/mock unit tests, verify `pytest`, commit & push.
+2. **Checkpoint 8:** Implement **NotebookLM-style 2-speaker Turkish Podcast ("Sesli Sohbet / Podcast Üret")** (`knowledge_hub/podcast.py`): generate structured `[AHMET]` / `[EMEL]` Turkish technical dialogue from any library item via configured LLM (OpenRouter / OpenAI / Mock), synthesize turns with `tr-TR-AhmetNeural` & `tr-TR-EmelNeural` (cached per turn!), assemble seamless MP3, expose `POST /api/items/{id}/podcast`, wire UI button in Reader & Listen views, add unit tests, verify `pytest`, commit & push.
+3. **Phase 3 (v1.0 — Native iOS App Store):** Scaffold Expo (React Native, TypeScript) client targeting the verified FastAPI endpoints.
 
 ## Decisions & why
-- **Edge Neural TTS (`tr-TR-AhmetNeural` / `tr-TR-EmelNeural`) as default over Supertonic 3** — Supertonic 3 had a noticeable foreign accent in Turkish; Edge Neural has native Turkish pronunciation, is free/unlimited, and produces compact MP3s ideal for iOS mobile. Supertonic 3 remains available as offline fallback.
-- **Zero code read aloud** — User explicitly requested code blocks and technical snippets never be translated or spoken aloud.
+- **Edge Neural TTS accepted for Turkish** — Natural native Turkish voices (`AhmetNeural` + `EmelNeural`), free, compact MP3s, and enables 2-speaker NotebookLM-style Turkish podcasts at zero TTS cost.
+- **Optional `KH_API_TOKEN` middleware** — Zero friction on local `127.0.0.1`, full Bearer protection when exposed via Tailscale HTTPS to iPhone.
 - **Never merge to `main`** — Keep all commits on `feat/mvp-foundation` until user approves merge.
 
 ## Gotchas
-- Browser Service Worker cache bumped to `kh-shell-v9`; tell user to press `Ctrl+F5` if old styles persist.
-- Existing `outputs/library.sqlite3` on this PC may still have `tts_provider: "supertonic"` saved from before; user can switch to **Edge Neural TTS** in **Ayarlar → Seslendirme** and click **Kaydet**.
+- `tests/test_mobile_api.py` verifies Starlette `FileResponse` returns HTTP `206 Partial Content` with `Accept-Ranges: bytes`.
+- Service Worker cache is at `kh-shell-v10`.
 
 ## How to verify
 ```powershell
