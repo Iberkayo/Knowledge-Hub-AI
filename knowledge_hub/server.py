@@ -778,13 +778,21 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
         key = secrets.get("elevenlabs_api_key")
         if not key:
             raise HTTPException(400, "ElevenLabs API anahtarı yapılandırılmamış.")
+        warnings: list[str] = []
+        sub = None
+        voices = []
         try:
             sub = get_elevenlabs_subscription(key)
-            voices = list_elevenlabs_voices(key)
-            models = list_elevenlabs_models(key)
-            return {"ok": True, "subscription": sub, "voices": voices, "models": models}
         except Exception as exc:
-            raise HTTPException(422, str(exc))
+            warnings.append(str(exc))
+        try:
+            voices = list_elevenlabs_voices(key)
+        except Exception as exc:
+            if sub is None:
+                raise HTTPException(422, str(exc))
+            warnings.append(str(exc))
+        models = list_elevenlabs_models(key)
+        return {"ok": True, "subscription": sub, "voices": voices, "models": models, "warnings": warnings}
 
     @app.get("/api/providers/elevenlabs/voices")
     def api_elevenlabs_voices():

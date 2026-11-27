@@ -1,4 +1,4 @@
-const CACHE = "kh-shell-v3";
+const CACHE = "kh-shell-v4";
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",

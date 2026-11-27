@@ -1251,7 +1251,9 @@ function renderSettings() {
   const elVoiceIn = el("input", { value: s.elevenlabs_voice_id || "", placeholder: "ElevenLabs Voice ID (Bağlantı testi ile seçilebilir)" });
   const elBudgetIn = el("input", { type: "number", value: String(s.elevenlabs_char_budget ?? 10000) });
   const elStatusOut = el("p", { className: "help-text" },
-    state.elevenSub ? `Plan: ${state.elevenSub.tier} · Kalan Kredi: ${state.elevenSub.remaining_characters} / ${state.elevenSub.character_limit} karakter` : ""
+    state.elevenSub
+      ? `Plan: ${state.elevenSub.tier} · Kalan Kredi: ${state.elevenSub.remaining_characters} / ${state.elevenSub.character_limit} karakter`
+      : (state.elevenWarning || "")
   );
   const sampleAudioWrap = el("div", { style: { marginTop: "8px" } });
 
@@ -1305,9 +1307,10 @@ function renderSettings() {
             state.elevenSub = res.subscription;
             state.elevenVoices = res.voices || [];
             state.elevenModels = res.models || state.elevenModels;
+            state.elevenWarning = (res.warnings && res.warnings.length) ? `⚠ ${res.warnings.join(" | ")}` : "";
             await loadSettingsData();
             renderCurrentView();
-            toast("ElevenLabs bağlantısı başarılı.");
+            toast(res.warnings?.length ? "ElevenLabs bağlandı (kısmi yetki uyarısı var)." : "ElevenLabs bağlantısı başarılı.");
           } catch (e) { elStatusOut.textContent = `✕ ${e.message}`; }
         },
       }, "Bağlantı & Kredi Testi"),

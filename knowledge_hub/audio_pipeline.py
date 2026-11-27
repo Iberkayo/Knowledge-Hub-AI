@@ -131,13 +131,28 @@ def assemble_mp3_files(part_paths: list[Path], out_path: Path) -> Path:
 
 # --- ElevenLabs API helpers ---
 
+def _eleven_error_detail(resp: httpx.Response) -> str:
+    try:
+        body = resp.json()
+        detail = body.get("detail")
+        if isinstance(detail, dict):
+            st = detail.get("status") or ""
+            msg = detail.get("message") or ""
+            return f"{st}: {msg}".strip(": ")[:220]
+        if detail:
+            return str(detail)[:220]
+    except Exception:
+        pass
+    return f"HTTP {resp.status_code}"
+
+
 def get_elevenlabs_subscription(api_key: str, transport: httpx.BaseTransport | None = None) -> dict[str, object]:
     if not api_key:
         raise ValueError("ElevenLabs API anahtarı yapılandırılmamış.")
     with httpx.Client(timeout=20.0, transport=transport) as client:
         resp = client.get(f"{ELEVEN_BASE}/user/subscription", headers={"xi-api-key": api_key})
     if resp.status_code >= 400:
-        raise RuntimeError(f"ElevenLabs kredi bilgisi alınamadı (HTTP {resp.status_code}).")
+        raise RuntimeError(f"ElevenLabs kredi bilgisi alınamadı (HTTP {resp.status_code} — {_eleven_error_detail(resp)}).")
     d = resp.json()
     limit = int(d.get("character_limit") or 0)
     used = int(d.get("character_count") or 0)
@@ -156,7 +171,7 @@ def list_elevenlabs_voices(api_key: str, transport: httpx.BaseTransport | None =
     with httpx.Client(timeout=20.0, transport=transport) as client:
         resp = client.get(f"{ELEVEN_BASE}/voices", headers={"xi-api-key": api_key})
     if resp.status_code >= 400:
-        raise RuntimeError(f"ElevenLabs ses listesi alınamadı (HTTP {resp.status_code}).")
+        raise RuntimeError(f"ElevenLabs ses listesi alınamadı (HTTP {resp.status_code} — {_eleven_error_detail(resp)}).")
     voices = []
     for v in resp.json().get("voices") or []:
         voices.append(
@@ -214,11 +229,11 @@ def synthesize_elevenlabs_chunk(
             json=payload,
         )
     if resp.status_code == 401:
-        raise RuntimeError("ElevenLabs API anahtarı geçersiz veya yetkisiz (401).")
+        raise RuntimeError(f"ElevenLabs API anahtarı geçersiz veya yetkisiz (HTTP 401 — {_eleven_error_detail(resp)}).")
     if resp.status_code == 402 or resp.status_code == 429:
-        raise RuntimeError(f"ElevenLabs kredi/kota sınırı aşıldı (HTTP {resp.status_code}).")
+        raise RuntimeError(f"ElevenLabs kredi/kota sınırı aşıldı (HTTP {resp.status_code} — {_eleven_error_detail(resp)}).")
     if resp.status_code >= 400:
-        raise RuntimeError(f"ElevenLabs ses üretimi başarısız (HTTP {resp.status_code}).")
+        raise RuntimeError(f"ElevenLabs ses üretimi başarısız (HTTP {resp.status_code} — {_eleven_error_detail(resp)}).")
     if not resp.headers.get("content-type", "").startswith("audio/"):
         raise ValueError("ElevenLabs beklenen ses formatını döndürmedi.")
     return resp.content, str(resp.headers.get("character-cost") or len(text))
