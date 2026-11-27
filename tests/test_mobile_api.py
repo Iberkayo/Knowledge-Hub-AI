@@ -65,3 +65,33 @@ def test_audio_http_range_206_and_query_token_auth(tmp_path):
 
     # Query token must NOT work on non-media endpoints like /api/settings
     assert client.get(f"/api/settings?token={token}").status_code == 401
+
+
+def test_zero_knowledge_byok_save_client_translation(tmp_path):
+    db = tmp_path / "byok.sqlite3"
+    app = create_app(db, secrets_path=tmp_path / ".secrets.json")
+    lib = Library(db)
+    item = lib.add("BYOK Article", "https://example.com/a", "article", "First paragraph.\n\nSecond paragraph.")
+    client = TestClient(app)
+
+    resp = client.put(
+        f"/api/items/{item['id']}/translation",
+        json={
+            "translated": "İlk paragraf.\n\nİkinci paragraf.",
+            "translation_mode": "faithful",
+            "provider": "openrouter_byok",
+            "model": "google/gemini-2.5-flash",
+            "segments": [
+                {"block_type": "paragraph", "original": "First paragraph.", "translated": "İlk paragraf."},
+                {"block_type": "paragraph", "original": "Second paragraph.", "translated": "İkinci paragraf."},
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "processed"
+    assert body["translated"] == "İlk paragraf.\n\nİkinci paragraf."
+    assert body["translation_provider"] == "openrouter_byok"
+    assert len(body["segments"]) == 2
+    assert body["segments"][0]["translated_text"] == "İlk paragraf."
+

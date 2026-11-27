@@ -1,9 +1,14 @@
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { CheckCircle2, Trash2 } from "lucide-react-native";
+import { CheckCircle2, ShieldCheck, Trash2 } from "lucide-react-native";
 
-import { KnowledgeHubApi, saveConnectionConfig } from "../api";
+import {
+  KnowledgeHubApi,
+  loadByokConfig,
+  saveByokConfig,
+  saveConnectionConfig,
+} from "../api";
 import { clearOfflineCache } from "../offline";
 import { FONTS, type Palette } from "../theme";
 import type { ConnectionConfig } from "../types";
@@ -29,6 +34,28 @@ export function SettingsScreen({
   const [apiToken, setApiToken] = useState(config.apiToken);
   const [testing, setTesting] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
+  const [byokKey, setByokKey] = useState("");
+  const [byokModel, setByokModel] = useState("google/gemini-2.5-flash");
+  const [byokSaved, setByokSaved] = useState("");
+
+  useEffect(() => {
+    loadByokConfig().then((b) => {
+      setByokKey(b.openrouterApiKey);
+      setByokModel(b.model);
+    });
+  }, []);
+
+  async function handleSaveByok() {
+    const saved = await saveByokConfig({ openrouterApiKey: byokKey, model: byokModel });
+    setByokKey(saved.openrouterApiKey);
+    setByokModel(saved.model);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setByokSaved(
+      saved.openrouterApiKey
+        ? "iOS Keychain'e kaydedildi. Çeviriler doğrudan telefonundan OpenRouter'a gider (sunucuya anahtar gitmez)."
+        : "Cihaz içi OpenRouter anahtarı temizlendi."
+    );
+  }
 
   async function handleSaveAndTest() {
     setTesting(true);
@@ -116,6 +143,72 @@ export function SettingsScreen({
             <Text style={[styles.statusText, { color: statusMsg.startsWith("Hata") ? palette.danger : palette.success }]}>
               {statusMsg}
             </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={[styles.panel, { backgroundColor: palette.bgElevated, borderColor: palette.border }]}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <ShieldCheck size={18} color={palette.success} />
+          <Text style={[styles.panelTitle, { color: palette.text, marginBottom: 0 }]}>
+            Cihaz İçi Çeviri Anahtarı (Zero-Knowledge BYOK)
+          </Text>
+        </View>
+        <Text style={[styles.help, { color: palette.textMuted }]}>
+          OpenRouter anahtarın yalnızca bu iPhone'un şifreli Keychain deposunda tutulur. Çeviriler doğrudan telefonundan OpenRouter'a yapılır; anahtarın sunucumuza asla gönderilmez ve kaydedilmez.
+        </Text>
+
+        <Text style={[styles.label, { color: palette.textMuted }]}>OpenRouter API Anahtarı (İsteğe Bağlı)</Text>
+        <TextInput
+          value={byokKey}
+          onChangeText={setByokKey}
+          placeholder="sk-or-v1-..."
+          placeholderTextColor={palette.textDim}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={[styles.input, { backgroundColor: palette.bgSurface, borderColor: palette.border, color: palette.text }]}
+        />
+
+        <Text style={[styles.label, { color: palette.textMuted }]}>Çeviri Modeli</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          {(
+            [
+              ["google/gemini-2.5-flash", "Gemini 2.5 Flash"],
+              ["anthropic/claude-sonnet-4", "Claude Sonnet 4"],
+              ["openai/gpt-4.1-mini", "GPT-4.1 Mini"],
+            ] as const
+          ).map(([mid, lbl]) => {
+            const active = byokModel === mid;
+            return (
+              <Pressable
+                key={mid}
+                onPress={() => setByokModel(mid)}
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor: active ? palette.accent : palette.border,
+                  backgroundColor: active ? palette.accentSoft : palette.bgSurface,
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "600", color: active ? palette.accent : palette.textMuted }}>
+                  {lbl}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Pressable onPress={handleSaveByok} style={[styles.primaryBtn, { backgroundColor: palette.accent }]}>
+          <Text style={[styles.primaryText, { color: palette.onAccent }]}>Keychain'e Kaydet</Text>
+        </Pressable>
+
+        {Boolean(byokSaved) && (
+          <View style={styles.statusRow}>
+            <CheckCircle2 size={15} color={palette.success} />
+            <Text style={[styles.statusText, { color: palette.success }]}>{byokSaved}</Text>
           </View>
         )}
       </View>

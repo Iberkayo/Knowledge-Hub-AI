@@ -61,12 +61,16 @@ Mevcut `knowledge_hub/server.py` (v0.5.0) 46 uç nokta ile sağlam bir temel sun
 
 ---
 
-## 3. iOS App Store Hazırlık Notları (v1.0)
-- **Teknoloji Seçimi:** **Expo (React Native, TypeScript)** — tek kod tabanıyla yüksek native kalite, `react-native-track-player` ile arka plan/kilit ekranı/CarPlay ses kontrolü, native Share Extension eklentisi ve EAS Build ile Windows'tan bile bulutta iOS build & TestFlight dağıtımı (Mac gerekmeden App Store Connect'e yükleme!).
+## 3. iOS App Store Hazırlık ve Zero-Knowledge BYOK Güvenlik Modeli (v1.0)
+- **Teknoloji Seçimi:** **Expo (React Native, TypeScript)** — tek kod tabanıyla yüksek native kalite, `expo-audio` ile arka plan/kilit ekranı ses kontrolü, native Share Extension eklentisi ve EAS Build ile Windows'tan bulutta iOS build & TestFlight dağıtımı.
+- **Kilitli API Anahtarı Güvenlik Modeli (Sıfır-Sunucu Saklama / Zero-Knowledge BYOK):**
+  - Kullanıcıların OpenRouter / OpenAI API anahtarları **yalnızca kendi iPhone'larının iOS Keychain'inde (`expo-secure-store`, Apple Secure Enclave)** saklanır.
+  - Çeviri istekleri doğrudan **`iPhone → TLS/HTTPS → OpenRouter / OpenAI`** şeklinde cihazdan yapılır; kullanıcının API anahtarı **sunucumuza hiçbir zaman gönderilmez, RAM'den geçmez, veritabanına veya loglara yazılmaz.**
+  - Sunucu yalnızca kütüphane/makale/transkript eşitlemesi için çevrilmiş çıktıyı (`PUT /api/items/{id}/translation`) kabul eder.
 - **App Store Review Gereksinimleri:**
   - Çok kullanıcılı hesap sistemi varsa **Sign in with Apple** ve uygulama içi **Hesabımı Sil** akışı zorunludur.
   - Yalnızca kullanıcının eklediği kendi kaynakları işlenir; telifli içerikler kullanıcılar arasında paylaşılmaz.
-  - API maliyeti / abonelik politikası: Dijital abonelik satılırsa **StoreKit 2 (IAP)** kullanılmalıdır; saf "kendi sunucuna / kendi API anahtarına bağlan (BYOK)" modeli ayrı bir kategori olarak net konumlandırılmalıdır.
+  - Saf BYOK modeli Apple App Store kurallarıyla uyumludur; ileride uygulama içi kredi/abonelik satılırsa **StoreKit 2 (IAP)** kullanılır.
 
 ---
 

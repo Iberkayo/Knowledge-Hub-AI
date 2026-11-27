@@ -14,7 +14,8 @@ import {
 } from "react-native";
 import { ArrowLeft, CloudDownload, Headphones, Languages, Mic, MoreHorizontal, Type, X } from "lucide-react-native";
 
-import type { KnowledgeHubApi } from "../api";
+import { loadByokConfig, type KnowledgeHubApi } from "../api";
+import { translateDirectlyWithOpenRouter } from "../directTranslate";
 import { getOfflineItem, saveItemOffline } from "../offline";
 import { usePlayer } from "../playerContext";
 import { FONTS, type Palette, type ThemeMode } from "../theme";
@@ -84,6 +85,7 @@ export function ReaderScreen({
   const [actionsOpen, setActionsOpen] = useState(false);
   const [savingOffline, setSavingOffline] = useState(false);
   const [activeJob, setActiveJob] = useState<{ id: string; kind: "translate" | "narrate" | "podcast"; progress: number } | null>(null);
+  const [directProgress, setDirectProgress] = useState<number | null>(null);
   const lastSyncPctRef = useRef(0);
 
   // Direct, deterministic per-job polling so Reader refreshes the instant translation/audio finishes
@@ -171,11 +173,57 @@ export function ReaderScreen({
   async function handleTranslate(mode: "faithful" | "explained" | "summary" = "faithful") {
     setActionsOpen(false);
     try {
+      const byok = await loadByokConfig();
+      if (byok.openrouterApiKey && item.original) {
+        // True Zero-Knowledge BYOK: translate directly iPhone -> OpenRouter (API key NEVER sent to backend)
+        setDirectProgress(0);
+        onJobStarted(`Doğrudan cihazdan çevriliyor (${byok.model})...`);
+        const res = await translateDirectlyWithOpenRouter({
+          originalText: item.original,
+          apiKey: byok.openrouterApiKey,
+          model: byok.model,
+          mode,
+          onProgress: (done, total) => setDirectProgress(done / Math.max(1, total)),
+        });
+        setDirectProgress(null);
+        let updated: LibraryItem = {
+          ...item,
+          translated: res.translated,
+          status: "processed",
+          mode: "live",
+          translation_mode: mode,
+          translation_provider: "openrouter_byok",
+          translation_model: byok.model,
+          segments: res.segments.map((s) => ({
+            original_text: s.original,
+            translated_text: s.translated,
+          })),
+        };
+        if (api.configured) {
+          try {
+            updated = await api.saveClientTranslation(item.id, {
+              translated: res.translated,
+              translation_mode: mode,
+              provider: "openrouter_byok",
+              model: byok.model,
+              segments: res.segments,
+            });
+          } catch {
+            // Keep local translated result even if offline sync fails
+          }
+        }
+        setItem(updated);
+        setTab("tr");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        return;
+      }
+
       const job = await api.translateItem(item.id, mode, Boolean(item.translated));
       setActiveJob({ id: job.id, kind: "translate", progress: 0 });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       onJobStarted("Türkçe çeviri başlatıldı.");
     } catch (e) {
+      setDirectProgress(null);
       Alert.alert("Çeviri Başlatılamadı", e instanceof Error ? e.message : String(e));
     }
   }
@@ -293,21 +341,26 @@ export function ReaderScreen({
               Kod blokları ve özel terimler korunarak doğal Türkçeye çevirmek için dokun.
             </Text>
             <Pressable
-              disabled={isBusy || Boolean(activeJob)}
+              disabled={isBusy || Boolean(activeJob) || directProgress !== null}
               onPress={() => handleTranslate("faithful")}
-              style={[styles.ctaBtn, { backgroundColor: palette.accent, opacity: isBusy || activeJob ? 0.75 : 1 }]}
+              style={[
+                styles.ctaBtn,
+                { backgroundColor: palette.accent, opacity: isBusy || activeJob || directProgress !== null ? 0.75 : 1 },
+              ]}
             >
-              {isBusy || activeJob ? (
+              {isBusy || activeJob || directProgress !== null ? (
                 <ActivityIndicator size="small" color={palette.onAccent} />
               ) : (
                 <Languages size={16} color={palette.onAccent} />
               )}
               <Text style={[styles.ctaText, { color: palette.onAccent }]}>
-                {activeJob
-                  ? `Çevriliyor... %${Math.round((activeJob.progress || 0) * 100)}`
-                  : isBusy
-                    ? "İşlem Sürüyor..."
-                    : "Türkçeye Çevir"}
+                {directProgress !== null
+                  ? `Cihazdan Çevriliyor... %${Math.round(directProgress * 100)}`
+                  : activeJob
+                    ? `Çevriliyor... %${Math.round((activeJob.progress || 0) * 100)}`
+                    : isBusy
+                      ? "İşlem Sürüyor..."
+                      : "Türkçeye Çevir"}
               </Text>
             </Pressable>
           </View>

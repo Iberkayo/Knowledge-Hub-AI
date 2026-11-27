@@ -111,6 +111,14 @@ class TranslateRequest(BaseModel):
     async_job: bool = True
 
 
+class SaveTranslationRequest(BaseModel):
+    translated: str = Field(min_length=1, max_length=2_000_000)
+    translation_mode: Literal["faithful", "explained", "summary"] = "faithful"
+    provider: str = Field(default="client_byok", max_length=64)
+    model: str = Field(default="", max_length=200)
+    segments: list[dict[str, object]] | None = None
+
+
 class NarrateRequest(BaseModel):
     provider: Literal["edge_tts", "openai_tts", "supertonic", "elevenlabs", "mock"] | None = None
     model: str | None = Field(default=None, max_length=120)
@@ -397,6 +405,33 @@ def create_app(
             return {"cost_usd": res["cost_usd"]}
 
         return jobs.submit(job_id, _work)
+
+    @app.put("/api/items/{identifier}/translation")
+    def save_client_translation(identifier: str, req: SaveTranslationRequest):
+        """Persist a client-side (Zero-Knowledge BYOK) translation without ever receiving API keys."""
+        item = lookup(identifier)
+        normalized_segments = None
+        if req.segments:
+            normalized_segments = [
+                {
+                    "block_type": str(s.get("block_type") or "paragraph"),
+                    "original": str(s.get("original") or s.get("original_text") or ""),
+                    "translated": str(s.get("translated") or s.get("translated_text") or ""),
+                    "warnings": list(s.get("warnings") or []),
+                    "cache_key": "",
+                }
+                for s in req.segments
+            ]
+        return lib.complete(
+            identifier,
+            req.translated,
+            "live",
+            translation_mode=req.translation_mode,
+            provider=req.provider,
+            model=req.model,
+            source_lang=str(item.get("source_lang") or "en"),
+            segments=normalized_segments,
+        )
 
     @app.post("/api/items/{identifier}/narrate/estimate")
     def narrate_estimate(identifier: str, req: NarrateRequest):

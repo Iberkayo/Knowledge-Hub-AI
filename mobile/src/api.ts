@@ -14,6 +14,36 @@ import type {
 const KEY_SERVER_URL = "kh_server_url";
 const KEY_API_TOKEN = "kh_api_token";
 const KEY_THEME = "kh_theme_pref";
+const KEY_BYOK_OPENROUTER = "kh_byok_openrouter_key";
+const KEY_BYOK_MODEL = "kh_byok_model";
+
+export interface ByokConfig {
+  openrouterApiKey: string;
+  model: string;
+}
+
+export async function loadByokConfig(): Promise<ByokConfig> {
+  const [openrouterApiKey, model] = await Promise.all([
+    secureGet(KEY_BYOK_OPENROUTER),
+    secureGet(KEY_BYOK_MODEL),
+  ]);
+  return {
+    openrouterApiKey: openrouterApiKey.trim(),
+    model: model.trim() || "google/gemini-2.5-flash",
+  };
+}
+
+export async function saveByokConfig(cfg: ByokConfig): Promise<ByokConfig> {
+  const clean: ByokConfig = {
+    openrouterApiKey: cfg.openrouterApiKey.trim(),
+    model: cfg.model.trim() || "google/gemini-2.5-flash",
+  };
+  await Promise.all([
+    secureSet(KEY_BYOK_OPENROUTER, clean.openrouterApiKey),
+    secureSet(KEY_BYOK_MODEL, clean.model),
+  ]);
+  return clean;
+}
 
 async function secureGet(key: string): Promise<string> {
   try {
@@ -161,6 +191,22 @@ export class KnowledgeHubApi {
     return this.request<JobInfo>(`/api/items/${encodeURIComponent(id)}/translate`, {
       method: "POST",
       body: { mode, force, async_job: true },
+    });
+  }
+
+  saveClientTranslation(
+    id: string,
+    payload: {
+      translated: string;
+      translation_mode: "faithful" | "explained" | "summary";
+      provider: string;
+      model: string;
+      segments?: Array<{ block_type: string; original: string; translated: string }>;
+    }
+  ): Promise<LibraryItem> {
+    return this.request<LibraryItem>(`/api/items/${encodeURIComponent(id)}/translation`, {
+      method: "PUT",
+      body: payload,
     });
   }
 
