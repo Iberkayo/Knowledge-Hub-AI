@@ -4,7 +4,18 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import * as Haptics from "expo-haptics";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
+import {
+  Animated,
+  Modal,
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronDown, ChevronUp, Headphones, Pause, Play, RotateCcw, RotateCw, X } from "lucide-react-native";
 
@@ -223,6 +234,50 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
   const [barWidth, setBarWidth] = useState(1);
   const [dragTime, setDragTime] = useState<number | null>(null);
   const dragTimeRef = useRef<number | null>(null);
+  const sheetY = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (expanded) {
+      sheetY.setValue(0);
+    }
+  }, [expanded, sheetY]);
+
+  const dismissSheet = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    Animated.timing(sheetY, {
+      toValue: 480,
+      duration: 170,
+      useNativeDriver: true,
+    }).start(() => {
+      setExpanded(false);
+      sheetY.setValue(0);
+    });
+  }, [setExpanded, sheetY]);
+
+  const swipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_evt, g) => g.dy > 10 && Math.abs(g.dy) > Math.abs(g.dx) * 1.2,
+        onPanResponderMove: (_evt, g) => {
+          if (g.dy > 0) sheetY.setValue(g.dy);
+        },
+        onPanResponderRelease: (_evt, g) => {
+          if (g.dy > 105 || g.vy > 0.65) {
+            dismissSheet();
+          } else {
+            Animated.spring(sheetY, {
+              toValue: 0,
+              useNativeDriver: true,
+              bounciness: 5,
+            }).start();
+          }
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(sheetY, { toValue: 0, useNativeDriver: true }).start();
+        },
+      }),
+    [dismissSheet, sheetY]
+  );
 
   const transcript: TranscriptSegment[] = useMemo(() => {
     if (!currentItem?.transcript_json) return [];
@@ -317,42 +372,56 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
       </View>
 
       {/* Expandable Full-Screen Editorial Now Playing Sheet */}
-      <Modal visible={expanded} animationType="slide" onRequestClose={() => setExpanded(false)}>
-        <View
+      <Modal visible={expanded} animationType="slide" onRequestClose={dismissSheet}>
+        <Animated.View
           style={[
             styles.sheetRoot,
             {
               backgroundColor: palette.bg,
               paddingTop: Math.max(insets.top, Platform.OS === "ios" ? 56 : 16),
               paddingBottom: Math.max(insets.bottom, 16),
+              transform: [{ translateY: sheetY }],
             },
           ]}
         >
-          <View style={[styles.sheetHeader, { borderBottomColor: palette.border }]}>
-            <Pressable
-              onPress={() => {
-                Haptics.selectionAsync().catch(() => {});
-                setExpanded(false);
-              }}
-              hitSlop={14}
-              style={styles.sheetCloseBtn}
-              accessibilityLabel="Oynatıcıyı küçült"
-            >
-              <ChevronDown size={24} color={palette.text} strokeWidth={1.9} />
-            </Pressable>
-            <Text style={[styles.sheetHeaderLabel, { color: palette.textMuted }]}>ŞİMDİ DİNLENİYOR</Text>
-            <Pressable
-              onPress={stop}
-              hitSlop={14}
-              style={styles.sheetCloseBtn}
-              accessibilityLabel="Oynatıcıyı kapat"
-            >
-              <X size={21} color={palette.textMuted} strokeWidth={1.9} />
-            </Pressable>
+          <View {...swipeResponder.panHandlers}>
+            <View style={styles.grabberRow}>
+              <View style={[styles.grabber, { backgroundColor: palette.borderStrong }]} />
+            </View>
+            <View style={[styles.sheetHeader, { borderBottomColor: palette.border }]}>
+              <Pressable
+                onPress={dismissSheet}
+                hitSlop={14}
+                style={styles.sheetCloseBtn}
+                accessibilityLabel="Oynatıcıyı küçült"
+              >
+                <ChevronDown size={24} color={palette.text} strokeWidth={1.9} />
+              </Pressable>
+              <Text style={[styles.sheetHeaderLabel, { color: palette.textMuted }]}>ŞİMDİ DİNLENİYOR</Text>
+              <Pressable
+                onPress={stop}
+                hitSlop={14}
+                style={styles.sheetCloseBtn}
+                accessibilityLabel="Oynatıcıyı kapat"
+              >
+                <X size={21} color={palette.textMuted} strokeWidth={1.9} />
+              </Pressable>
+            </View>
           </View>
 
-          <ScrollView scrollEnabled={dragTime === null} contentContainerStyle={styles.sheetScroll}>
-            <View style={[styles.coverCard, { backgroundColor: palette.bgElevated, borderColor: palette.border }]}>
+          <ScrollView
+            scrollEnabled={dragTime === null}
+            onScrollEndDrag={(e) => {
+              if (e.nativeEvent.contentOffset.y < -60) {
+                dismissSheet();
+              }
+            }}
+            contentContainerStyle={styles.sheetScroll}
+          >
+            <View
+              {...swipeResponder.panHandlers}
+              style={[styles.coverCard, { backgroundColor: palette.bgElevated, borderColor: palette.border }]}
+            >
               <View style={[styles.coverIconWrap, { backgroundColor: palette.accentSoft }]}>
                 <Headphones size={26} color={palette.accent} strokeWidth={1.7} />
               </View>
@@ -472,7 +541,7 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
               </View>
             )}
           </ScrollView>
-        </View>
+        </Animated.View>
       </Modal>
     </>
   );
@@ -542,6 +611,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sheetRoot: { flex: 1 },
+  grabberRow: {
+    alignItems: "center",
+    paddingTop: 4,
+    paddingBottom: 2,
+  },
+  grabber: {
+    width: 38,
+    height: 4.5,
+    borderRadius: 3,
+  },
   sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
