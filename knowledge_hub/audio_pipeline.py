@@ -166,6 +166,43 @@ def _get_supertonic_tts():
         return _SUPERTONIC_ENGINE
 
 
+_SUPERTONIC_CHAR_REPLACEMENTS = {
+    "\u21a9": " ",   # ↩ footnote return arrow
+    "\u21aa": " ",   # ↪
+    "\ufe0e": "",    # text variation selector
+    "\ufe0f": "",    # emoji variation selector
+    "\u200b": "",    # zero-width space
+    "\u200c": "",
+    "\u200d": "",
+    "\u00a0": " ",   # nbsp
+    "\u2192": " ",   # →
+    "\u2190": " ",   # ←
+    "\u21d2": " ",   # ⇒
+    "\u2013": "-",   # –
+    "\u2014": " - ", # —
+    "\u2026": "...", # …
+    "\u201c": '"',
+    "\u201d": '"',
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u00ab": '"',
+    "\u00bb": '"',
+    "\u2022": ", ",  # •
+}
+
+
+def sanitize_supertonic_text(text: str, supported_chars: set[str] | None = None) -> str:
+    """Normalize typography and strip characters unsupported by Supertonic's UnicodeProcessor."""
+    out = text
+    for src, dst in _SUPERTONIC_CHAR_REPLACEMENTS.items():
+        if src in out:
+            out = out.replace(src, dst)
+    if supported_chars is not None:
+        out = "".join(ch if (ch in supported_chars or ch.isspace()) else " " for ch in out)
+    out = re.sub(r"\s+", " ", out).strip()
+    return out
+
+
 def synthesize_supertonic_chunk(
     text: str,
     *,
@@ -178,9 +215,14 @@ def synthesize_supertonic_chunk(
 
     chosen_voice = voice if voice in SUPERTONIC_VOICES else "M1"
     tts = _get_supertonic_tts()
+    tp = getattr(getattr(tts, "model", None), "text_processor", None)
+    supported = getattr(tp, "supported_character_set", None)
+    clean_text = sanitize_supertonic_text(text, supported_chars=supported)
+    if not clean_text:
+        clean_text = "."
     with _SUPERTONIC_LOCK:
         style = tts.get_voice_style(voice_name=chosen_voice)
-        wav, dur = tts.synthesize(text, voice_style=style, speed=float(speed), lang=lang)
+        wav, dur = tts.synthesize(clean_text, voice_style=style, speed=float(speed), lang=lang)
     buf = io.BytesIO()
     sr = int(getattr(tts, "sample_rate", 44100))
     sf.write(buf, wav.squeeze(), sr, format="WAV", subtype="PCM_16")
