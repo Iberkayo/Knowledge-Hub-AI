@@ -1,0 +1,32 @@
+[
+  {
+    "id": "en-stat",
+    "source": "A 95% confidence interval does not assign a 95% probability to the fixed parameter.",
+    "reference": "%95 güven aralığı, sabit parametreye %95 olasılık atamaz."
+  },
+  {
+    "id": "en-ml",
+    "source": "We fit the model on training data only. The test set must not influence feature selection.",
+    "reference": "Modeli yalnızca eğitim verisine uydururuz. Test kümesi öznitelik seçimini etkilememelidir."
+  },
+  {
+    "id": "de",
+    "source": "Die Stichprobe enthält 120 Beobachtungen. Korrelation bedeutet nicht Kausalität.",
+    "reference": "Örneklem 120 gözlem içerir. Korelasyon nedensellik anlamına gelmez."
+  },
+  {
+    "id": "fr",
+    "source": "Le taux d'erreur est passé de 12 % à 8 %, sans modification du seuil.",
+    "reference": "Hata oranı, eşik değiştirilmeden %12'den %8'e düştü."
+  },
+  {
+    "id": "es",
+    "source": "La función de pérdida es L = (y - p)^2. No debemos utilizar datos futuros.",
+    "reference": "Kayıp fonksiyonu L = (y - p)^2 şeklindedir. Geleceğe ait verileri kullanmamalıyız."
+  },
+  {
+    "id": "en-code",
+    "source": "Set learning_rate=0.01, but do not assume that a lower training loss implies better generalization.",
+    "reference": "learning_rate=0.01 olarak ayarlayın, ancak daha düşük eğitim kaybının daha iyi genelleme anlamına geldiğini varsaymayın."
+  }
+]
