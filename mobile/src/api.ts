@@ -220,4 +220,8 @@ export class KnowledgeHubApi {
   listJobs(): Promise<JobInfo[]> {
     return this.request<JobInfo[]>("/api/jobs");
   }
+
+  getJob(jobId: string): Promise<JobInfo> {
+    return this.request<JobInfo>(`/api/jobs/${encodeURIComponent(jobId)}`);
+  }
 }

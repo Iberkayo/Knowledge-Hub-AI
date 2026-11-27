@@ -83,7 +83,54 @@ export function ReaderScreen({
   const [typoOpen, setTypoOpen] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const [savingOffline, setSavingOffline] = useState(false);
+  const [activeJob, setActiveJob] = useState<{ id: string; kind: "translate" | "narrate" | "podcast"; progress: number } | null>(null);
   const lastSyncPctRef = useRef(0);
+
+  // Direct, deterministic per-job polling so Reader refreshes the instant translation/audio finishes
+  useEffect(() => {
+    if (!activeJob) return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      try {
+        const j = await api.getJob(activeJob.id);
+        if (!alive) return;
+        if (j.status === "COMPLETED") {
+          const kind = activeJob.kind;
+          setActiveJob(null);
+          const fresh = await api.getItem(initialItem.id);
+          if (!alive) return;
+          setItem(fresh);
+          if (kind === "translate" && fresh.translated) {
+            setTab("tr");
+          }
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          if ((kind === "narrate" || kind === "podcast") && fresh.audio_status === "ready") {
+            playItem(fresh).catch(() => {});
+          }
+          return;
+        }
+        if (j.status === "FAILED" || j.status === "CANCELLED") {
+          setActiveJob(null);
+          if (j.status === "FAILED") {
+            Alert.alert("İşlem Başarısız", j.error_message || "Bilinmeyen hata");
+          }
+          return;
+        }
+        setActiveJob((prev) => (prev ? { ...prev, progress: j.progress || 0 } : null));
+        timer = setTimeout(tick, 1000);
+      } catch {
+        if (alive) timer = setTimeout(tick, 1500);
+      }
+    };
+
+    timer = setTimeout(tick, 700);
+    return () => {
+      alive = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, [activeJob?.id, api, initialItem.id, playItem]);
 
   useEffect(() => {
     let alive = true;
@@ -124,7 +171,8 @@ export function ReaderScreen({
   async function handleTranslate(mode: "faithful" | "explained" | "summary" = "faithful") {
     setActionsOpen(false);
     try {
-      await api.translateItem(item.id, mode, Boolean(item.translated));
+      const job = await api.translateItem(item.id, mode, Boolean(item.translated));
+      setActiveJob({ id: job.id, kind: "translate", progress: 0 });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       onJobStarted("Türkçe çeviri başlatıldı.");
     } catch (e) {
@@ -138,7 +186,8 @@ export function ReaderScreen({
       return;
     }
     try {
-      await api.narrateItem(item.id, "edge_tts");
+      const job = await api.narrateItem(item.id, "edge_tts");
+      setActiveJob({ id: job.id, kind: "narrate", progress: 0 });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       onJobStarted("Doğal Türkçe (Edge Neural) seslendirme başlatıldı.");
     } catch (e) {
@@ -149,7 +198,8 @@ export function ReaderScreen({
   async function handlePodcast() {
     setActionsOpen(false);
     try {
-      await api.generatePodcast(item.id, "medium");
+      const job = await api.generatePodcast(item.id, "medium");
+      setActiveJob({ id: job.id, kind: "podcast", progress: 0 });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       onJobStarted("Emel & Ahmet 2 kişilik Türkçe podcast üretimi başlatıldı.");
     } catch (e) {
@@ -243,17 +293,21 @@ export function ReaderScreen({
               Kod blokları ve özel terimler korunarak doğal Türkçeye çevirmek için dokun.
             </Text>
             <Pressable
-              disabled={isBusy}
+              disabled={isBusy || Boolean(activeJob)}
               onPress={() => handleTranslate("faithful")}
-              style={[styles.ctaBtn, { backgroundColor: palette.accent, opacity: isBusy ? 0.7 : 1 }]}
+              style={[styles.ctaBtn, { backgroundColor: palette.accent, opacity: isBusy || activeJob ? 0.75 : 1 }]}
             >
-              {isBusy ? (
+              {isBusy || activeJob ? (
                 <ActivityIndicator size="small" color={palette.onAccent} />
               ) : (
                 <Languages size={16} color={palette.onAccent} />
               )}
               <Text style={[styles.ctaText, { color: palette.onAccent }]}>
-                {isBusy ? "Türkçeye Çevriliyor..." : "Türkçeye Çevir"}
+                {activeJob
+                  ? `Çevriliyor... %${Math.round((activeJob.progress || 0) * 100)}`
+                  : isBusy
+                    ? "İşlem Sürüyor..."
+                    : "Türkçeye Çevir"}
               </Text>
             </Pressable>
           </View>

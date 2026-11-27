@@ -6,7 +6,7 @@ import * as Haptics from "expo-haptics";
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronDown, Headphones, Pause, Play, RotateCcw, RotateCw, X } from "lucide-react-native";
+import { ChevronDown, ChevronUp, Headphones, Pause, Play, RotateCcw, RotateCw, X } from "lucide-react-native";
 
 import type { KnowledgeHubApi } from "./api";
 import { getOfflineAudioUri } from "./offline";
@@ -252,14 +252,18 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
               Haptics.selectionAsync().catch(() => {});
               setExpanded(true);
             }}
-            style={styles.meta}
+            hitSlop={10}
+            style={styles.metaBtn}
           >
-            <Text numberOfLines={1} style={[styles.title, { color: palette.text }]}>
-              {currentItem.title}
-            </Text>
-            <Text numberOfLines={1} style={[styles.sub, { color: palette.textMuted }]}>
-              {formatTime(currentTime)} / {formatTime(duration)} · Dokun ve büyüt
-            </Text>
+            <ChevronUp size={18} color={palette.accent} strokeWidth={2} />
+            <View style={styles.meta}>
+              <Text numberOfLines={1} style={[styles.title, { color: palette.text }]}>
+                {currentItem.title}
+              </Text>
+              <Text numberOfLines={1} style={[styles.sub, { color: palette.textMuted }]}>
+                {formatTime(currentTime)} / {formatTime(duration)} · Tam ekran
+              </Text>
+            </View>
           </Pressable>
           <View style={styles.controls}>
             <Pressable onPress={cycleSpeed} hitSlop={8} style={styles.speedBtn}>
@@ -290,7 +294,7 @@ export function MiniPlayer({ palette }: { palette: Palette }) {
       </View>
 
       {/* Expandable Full-Screen Editorial Now Playing Sheet */}
-      <Modal visible={expanded} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setExpanded(false)}>
+      <Modal visible={expanded} animationType="slide" onRequestClose={() => setExpanded(false)}>
         <SafeAreaView style={[styles.sheetRoot, { backgroundColor: palette.bg }]} edges={["top", "bottom"]}>
           <View style={[styles.sheetHeader, { borderBottomColor: palette.border }]}>
             <Pressable onPress={() => setExpanded(false)} hitSlop={12} style={styles.sheetCloseBtn}>
@@ -442,6 +446,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 10,
+  },
+  metaBtn: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
   },
   meta: {
     flex: 1,
