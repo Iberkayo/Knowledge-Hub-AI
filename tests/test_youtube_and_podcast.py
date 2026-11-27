@@ -22,12 +22,15 @@ def test_extract_youtube_video_id_variants_and_rejects_invalid():
 
 def test_group_transcript_paragraphs_creates_clean_blocks():
     segs = [
-        {"start": 0.0, "end": 5.0, "text": "Evaluation systems are essential for LLM apps."},
-        {"start": 5.0, "end": 10.0, "text": "Error analysis should come before automated metrics."},
+        {"start": 0.0, "end": 5.0, "text": ">> Evaluation systems are essential [music] for LLM apps."},
+        {"start": 5.0, "end": 10.0, "text": "> Error analysis should come before automated metrics."},
         {"start": 10.0, "end": 15.0, "text": "Domain experts must inspect real failure traces."},
     ]
     text = group_transcript_paragraphs(segs, target_chars=60)
-    assert "Evaluation systems are essential" in text
+    assert "Evaluation systems are essential for LLM apps." in text
+    assert ">>" not in text
+    assert "[music]" not in text
+    assert not text.lstrip().startswith(">")
     assert "\n\n" in text
 
 

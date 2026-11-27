@@ -64,13 +64,24 @@ def fetch_youtube_metadata(video_id: str, *, transport: httpx.BaseTransport | No
     return {"title": f"YouTube Video ({video_id})", "author": ""}
 
 
+_CAPTION_NOISE_RE = re.compile(r"\[(?:music|applause|laughter|inaudible|cheering|silence)\]", re.I)
+
+
+def clean_caption_snippet(raw_text: str) -> str:
+    """Clean YouTube auto-caption speaker arrows (>>) and bracketed sound tags ([music])."""
+    cleaned = _CAPTION_NOISE_RE.sub(" ", raw_text)
+    cleaned = re.sub(r"(?:^|\s)>>+\s*", " ", cleaned)
+    cleaned = re.sub(r"^\s*>\s*", "", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
 def group_transcript_paragraphs(segments: list[dict[str, object]], *, target_chars: int = 480) -> str:
     """Group short caption snippets into clean readable paragraphs for editorial reading & translation."""
     paragraphs: list[str] = []
     buf: list[str] = []
     buf_len = 0
     for seg in segments:
-        piece = re.sub(r"\s+", " ", str(seg.get("text") or "")).strip()
+        piece = clean_caption_snippet(str(seg.get("text") or ""))
         if not piece:
             continue
         buf.append(piece)
@@ -132,7 +143,7 @@ def fetch_youtube_transcript(
             raw_text = str(getattr(entry, "text", "") or "")
             start = float(getattr(entry, "start", 0.0) or 0.0)
             dur = float(getattr(entry, "duration", 0.0) or 0.0)
-        clean = re.sub(r"\s+", " ", raw_text).strip()
+        clean = clean_caption_snippet(raw_text)
         if not clean:
             continue
         segments.append({

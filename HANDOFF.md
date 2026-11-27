@@ -1,47 +1,34 @@
-# Handoff — 2026-11-27 22:22 — Antigravity (Home PC w/ RTX 3050 6GB)
+# Handoff — 2026-11-27 22:44 — Antigravity (Home PC w/ RTX 3050 6GB)
 
 ## Goal
 Ship **Knowledge Hub AI** across Web + **Native iOS App Store** (Expo / React Native + FastAPI backend) on `feat/mvp-foundation` (PR #1).
 
 ## Done
-- **Phase 1 Accepted (Checkpoints 1–5: `062bdad`, `f28462a`, `a8038c7`, `22ec73d`, `714ca97`):**
-  - Locked 3-phase iOS App Store scope (`docs/SCOPE.md`), API-first architecture & Anti-AI-Slop Editorial UX Constitution (`docs/ARCHITECTURE.md`).
-  - Python 3.11 `.venv`, RTX 3050 CUDA 12 Faster-Whisper (`cuda_available: True`), Edge Neural TTS (`tr-TR-AhmetNeural` / `tr-TR-EmelNeural` — accepted as MVP, flagged in `docs/SCOPE.md` for future premium/GPU TTS upgrade), fluent Turkish prompt (`v2.1`), code/table/URL skipping in narration, warm paper/ink editorial UI verified on desktop & 390px iPhone viewport.
-- **Phase 2 Complete (Checkpoints 6–8: `843b4d1`, `1f05dfe`, `ad42440`):**
-  - Optional `KH_API_TOKEN` constant-time Bearer auth (`knowledge_hub/auth.py`), `/api/health`, HTTP `206 Partial Content` (`Range`) audio streaming verified, Tailscale iPhone guide (`docs/MOBILE_ACCESS.md`).
-  - YouTube URL → timestamped transcript ingestion (`knowledge_hub/youtube.py`, auto-detected inside `/api/import-url`).
-  - NotebookLM-style 2-speaker Turkish Podcast generator (`knowledge_hub/podcast.py` — Emel + Ahmet dual-voice MP3 + interactive speaker transcript via `/api/items/{id}/podcast`).
-- **Checkpoint 9 (Phase 3 Kickoff — Native iOS Expo / React Native App Scaffolded in `mobile/`):**
-  - Scaffolded Expo SDK 58 (`expo ~58.1.0`, `react-native 0.88.1`, TypeScript strict mode) in `mobile/` with `expo-audio`, `expo-file-system`, `expo-secure-store`, `expo-haptics`, `react-native-safe-area-context`, `lucide-react-native`.
-  - Configured App Store metadata & EAS Build profiles (`mobile/app.json` with `UIBackgroundModes: ["audio"]` + `ITSAppUsesNonExemptEncryption: false`, `mobile/eas.json`).
-  - Implemented editorial Paper/Ink iOS design system (`mobile/src/theme.ts`), iOS Keychain FastAPI client (`mobile/src/api.ts`), real filesystem offline article + MP3 cache (`mobile/src/offline.ts`), and global background + iOS Lock Screen audio player + `MiniPlayer` (`mobile/src/playerContext.tsx`).
-  - Built all 5 native screens (`LibraryScreen`, `ReaderScreen` with `Aa` sheet & actions sheet, `DiscoverScreen`, `ListenScreen` with interactive speaker transcript, `SettingsScreen`) + `mobile/App.tsx`.
-  - Added `docs/IOS_RELEASE.md` (Expo Go 2-minute test + EAS Build -> TestFlight / App Store Connect guide) and updated root `.gitignore` for mobile build artifacts.
-  - Verified `npx tsc --noEmit` (0 errors) inside `mobile/` AND **60/60 backend pytest tests** passing.
+- **Phase 1 & 2 Complete (Checkpoints 1–8: `062bdad`..`ad42440`):** Locked iOS App Store scope, API-first architecture & Anti-AI-Slop Editorial UX Constitution, Python 3.11 `.venv` + RTX 3050 CUDA 12 Faster-Whisper, Edge Neural TTS (`AhmetNeural`/`EmelNeural`), fluent Turkish prompt (`v2.1`), code-skipping in narration, Bearer token auth (`KH_API_TOKEN`), HTTP `206 Range` audio streaming, YouTube transcript ingestion, and 2-speaker Emel & Ahmet Turkish podcast generation.
+- **Checkpoint 9 (`78f36c7` — Native iOS App Live-Verified on Real iPhone via Expo Go):**
+  - Scaffolded Expo SDK 58 app in `mobile/`, verified live on user's physical iPhone over Wi-Fi (`192.168.1.107:8081` + authenticated FastAPI `192.168.1.107:8000`, `KH_API_TOKEN`).
+  - Live-verified YouTube import (`Terence Tao`, `OpenAI You had us at Deployed`), Gemini 2.5 Flash Turkish translation, and Emel+Ahmet 2-speaker podcast playback on iPhone.
+- **Checkpoint 10 (Live iPhone UX Fixes — Full-Screen Now Playing Sheet, Auto-Refresh on Job Completion & Clean YouTube Captions):**
+  - **Auto-refresh on job completion (`mobile/App.tsx`, `mobile/src/screens/ReaderScreen.tsx`):** Polled jobs finishing (`COMPLETED`/`FAILED`) now automatically trigger `refreshTick` + library refresh so `ReaderScreen` switches immediately to the newly translated Turkish text (and shows an inline loading spinner while translating).
+  - **Expandable Full-Screen Now Playing Player (`mobile/src/playerContext.tsx`):** Tapping `MiniPlayer` expands an Apple Podcasts/Castro-style editorial full-screen player sheet with interactive touch/drag timeline scrubber, large 15s back / Play-Pause / 30s forward controls, speed pills (`0.75×`–`2×`), and clickable live timestamped transcript/podcast dialogue.
+  - **Clean YouTube Auto-Captions (`knowledge_hub/youtube.py`):** Added `clean_caption_snippet()` to strip `>>` / `>` speaker markers and `[music]` / `[applause]` / `[laughter]` tags so YouTube transcripts read cleanly without stray markdown blockquotes.
+  - Verified `npx tsc --noEmit` (0 errors) + **60/60 backend pytest tests** passing.
 
 ## In progress
-- Ready for user to test the native iOS app on their iPhone via Expo Go (`cd mobile && npx expo start --tunnel`) or trigger their first EAS TestFlight build, and decide the next Phase 3 milestone (iOS Share Extension / Cloud multi-user backend / TTS voice upgrade).
+- **User Re-testing on Physical iPhone (Expo Go running live on `exp://192.168.1.107:8081`):** User testing the new expandable Now Playing sheet and auto-refreshing translation flow.
+- **Important iOS Background Audio Note:** Expo Go's pre-built App Store binary does not bundle our custom `UIBackgroundModes: ["audio"]` entitlement, so iOS pauses audio on screen lock inside Expo Go; building our own **EAS Development / TestFlight Build** (`eas build --platform ios`) compiles `app.json`'s `UIBackgroundModes: ["audio"]` natively so lock-screen & background audio works continuously.
 
 ## Next steps
-1. **Live iPhone Test (2 minutes):**
-   - Start FastAPI with `KH_API_TOKEN` + `tailscale serve https / http://127.0.0.1:8000` (see `docs/MOBILE_ACCESS.md`).
-   - Run `cd mobile && npx expo start --tunnel` and scan QR code with **Expo Go** on iPhone.
-   - Enter Tailscale HTTPS URL + token in **Ayarlar** and verify reading, background lock-screen audio, offline download, YouTube import, and 2-speaker podcast playback on iPhone.
-2. **Phase 3B (App Store Polish & Custom Native Features):**
-   - Add **iOS Share Extension** (1-tap save from Safari / X / YouTube) via Expo config plugin.
-   - Replace placeholder `mobile/assets/icon.png` with rendered editorial terracotta/paper App Store 1024×1024 PNG icon (matching `knowledge_hub/static/icon.svg`).
-   - Upgrade TTS quality (e.g. OpenAI `gpt-4o-mini-tts` / Google Chirp 3 HD / ElevenLabs `multilingual_v2` / local GPU Chatterbox).
-3. **Phase 3C (Public App Store Launch — Multi-User Cloud Readiness):**
-   - Add Postgres + R2/S3 storage backend, Sign in with Apple, in-app account deletion, privacy policy & StoreKit 2 / BYOK positioning, then `eas build --platform ios --profile production` + `eas submit`.
+1. **First Native iOS TestFlight / Dev Build (unlocks Lock-Screen Background Audio + iOS Share Extension!):**
+   - Generate crisp 1024×1024 editorial App Store PNG icon (`mobile/assets/icon.png`) matching `knowledge_hub/static/icon.svg`.
+   - Run `eas build --platform ios --profile preview` (or `production` for TestFlight) with user's Apple Developer account so `UIBackgroundModes: ["audio"]` works natively when iPhone is locked.
+2. **iOS Share Extension:** Add 1-tap "Save to Knowledge Hub" from Safari / YouTube / X.
+3. **TTS Quality Upgrade (flagged as improvable):** Add higher-naturalness Turkish TTS option (OpenAI `gpt-4o-mini-tts` / Google Chirp 3 HD / ElevenLabs Multilingual v2 / local RTX 3050 GPU TTS).
+4. **Public App Store Cloud Readiness:** Multi-user auth (Sign in with Apple + account deletion), Postgres + R2/S3, StoreKit 2 or BYOK positioning.
 
 ## Decisions & why
-- **Expo SDK 58 `expo-audio` with built-in Lock Screen controls** — Official native iOS background audio & lock screen controls (`setActiveForLockScreen`) without fragile third-party native patches; works in both Expo Go and EAS Build.
-- **TTS noted as improvable** — Edge Neural TTS is acceptable for MVP/Phase 2; `audio_pipeline.py` keeps providers swappable so upgrading TTS automatically upgrades both Web and iOS.
-- **Monorepo `mobile/` folder** — Keeps FastAPI backend and Expo iOS app synchronized on `feat/mvp-foundation` (never merge to `main` without explicit user approval).
-
-## Gotchas
-- `mobile/node_modules/` and `mobile/.expo/` are gitignored; after cloning on another machine run `cd mobile && npm install`.
-- Local FastAPI server (`127.0.0.1:8000`) may still be running in the background during development.
+- **Expo Go vs EAS Build for iOS Background Audio** — Confirmed on real iPhone that Expo Go drops audio on lock screen due to Expo Go's fixed entitlements; our `mobile/app.json` already declares `UIBackgroundModes: ["audio"]` + `setActiveForLockScreen`, ready for EAS TestFlight build.
+- **Never merge to `main`** — Keep all commits on `feat/mvp-foundation` until user explicitly approves merge.
 
 ## How to verify
 ```powershell

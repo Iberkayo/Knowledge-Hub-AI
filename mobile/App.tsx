@@ -35,6 +35,8 @@ function AppShell() {
   const [readerItem, setReaderItem] = useState<LibraryItem | null>(null);
   const [activeJobs, setActiveJobs] = useState<JobInfo[]>([]);
   const [bannerMsg, setBannerMsg] = useState("");
+  const [refreshTick, setRefreshTick] = useState(0);
+  const prevRunningIdsRef = React.useRef<Set<string>>(new Set());
 
   const resolvedTheme: ThemeMode =
     themePref === "system" ? (systemScheme === "dark" ? "dark" : "light") : themePref;
@@ -80,7 +82,7 @@ function AppShell() {
     refreshLibrary();
   }, [refreshLibrary]);
 
-  // Poll active backend jobs while any job is running
+  // Poll active backend jobs and auto-refresh views when any job finishes
   useEffect(() => {
     if (!api.configured) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -90,9 +92,27 @@ function AppShell() {
         const jobs = await api.listJobs();
         if (!alive) return;
         const running = jobs.filter((j) => j.status === "RUNNING" || j.status === "QUEUED");
+        const prevIds = prevRunningIdsRef.current;
+        const finishedNow = jobs.filter(
+          (j) => prevIds.has(j.id) && (j.status === "COMPLETED" || j.status === "FAILED" || j.status === "CANCELLED")
+        );
+        prevRunningIdsRef.current = new Set(running.map((j) => j.id));
         setActiveJobs(running);
+
+        if (finishedNow.length > 0) {
+          const failed = finishedNow.find((j) => j.status === "FAILED");
+          if (failed) {
+            setBannerMsg(`Hata: ${failed.error_message || "İşlem başarısız oldu"}`);
+          } else {
+            setBannerMsg("İşlem tamamlandı.");
+            setTimeout(() => setBannerMsg(""), 2500);
+          }
+          setRefreshTick((t) => t + 1);
+          refreshLibrary();
+        }
+
         if (running.length > 0) {
-          timer = setTimeout(poll, 2500);
+          timer = setTimeout(poll, 1600);
         }
       } catch {
         // ignore transient errors
@@ -103,7 +123,7 @@ function AppShell() {
       alive = false;
       if (timer) clearTimeout(timer);
     };
-  }, [api, bannerMsg]);
+  }, [api, bannerMsg, refreshLibrary]);
 
   function notifyJob(msg: string) {
     setBannerMsg(msg);
@@ -144,12 +164,17 @@ function AppShell() {
               palette={palette}
               initialItem={readerItem}
               themeMode={resolvedTheme}
+              refreshTick={refreshTick}
+              isBusy={activeJobs.length > 0}
               onSetThemeMode={(m) => handleThemePref(m)}
               onBack={() => {
                 setReaderItem(null);
                 refreshLibrary();
               }}
-              onJobStarted={notifyJob}
+              onJobStarted={(msg) => {
+                notifyJob(msg);
+                setRefreshTick((t) => t + 1);
+              }}
               onOfflineChanged={refreshOfflineSet}
             />
           ) : tab === "library" ? (

@@ -55,6 +55,8 @@ export function ReaderScreen({
   palette,
   initialItem,
   themeMode,
+  refreshTick = 0,
+  isBusy = false,
   onSetThemeMode,
   onBack,
   onJobStarted,
@@ -64,6 +66,8 @@ export function ReaderScreen({
   palette: Palette;
   initialItem: LibraryItem;
   themeMode: ThemeMode;
+  refreshTick?: number;
+  isBusy?: boolean;
   onSetThemeMode: (mode: ThemeMode) => void;
   onBack: () => void;
   onJobStarted: (message: string) => void;
@@ -99,7 +103,7 @@ export function ReaderScreen({
     return () => {
       alive = false;
     };
-  }, [api, initialItem.id]);
+  }, [api, initialItem.id, refreshTick]);
 
   const blocks = useMemo(() => {
     const src = tab === "tr" ? item.translated || "" : item.original || "";
@@ -238,9 +242,19 @@ export function ReaderScreen({
             <Text style={[styles.emptySub, { color: palette.textMuted }]}>
               Kod blokları ve özel terimler korunarak doğal Türkçeye çevirmek için dokun.
             </Text>
-            <Pressable onPress={() => handleTranslate("faithful")} style={[styles.ctaBtn, { backgroundColor: palette.accent }]}>
-              <Languages size={16} color={palette.onAccent} />
-              <Text style={[styles.ctaText, { color: palette.onAccent }]}>Türkçeye Çevir</Text>
+            <Pressable
+              disabled={isBusy}
+              onPress={() => handleTranslate("faithful")}
+              style={[styles.ctaBtn, { backgroundColor: palette.accent, opacity: isBusy ? 0.7 : 1 }]}
+            >
+              {isBusy ? (
+                <ActivityIndicator size="small" color={palette.onAccent} />
+              ) : (
+                <Languages size={16} color={palette.onAccent} />
+              )}
+              <Text style={[styles.ctaText, { color: palette.onAccent }]}>
+                {isBusy ? "Türkçeye Çevriliyor..." : "Türkçeye Çevir"}
+              </Text>
             </Pressable>
           </View>
         ) : tab === "bilingual" ? (
