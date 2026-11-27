@@ -20,12 +20,14 @@ from pydantic import BaseModel, Field
 
 from knowledge_hub import __version__
 from knowledge_hub.audio_pipeline import (
+    EDGE_TTS_VOICES,
     SUPERTONIC_VOICES,
     estimate_narration_cost,
     get_elevenlabs_subscription,
     list_elevenlabs_models,
     list_elevenlabs_voices,
     narrate_item,
+    synthesize_edge_tts_chunk,
     synthesize_elevenlabs_chunk,
     synthesize_supertonic_chunk,
 )
@@ -115,6 +117,15 @@ class SupertonicSampleRequest(BaseModel):
     speed: float = Field(default=1.05, ge=0.7, le=1.6)
     text: str = Field(
         default="Merhaba! Bu, Knowledge Hub AI için yerel Supertonic 3 Türkçe seslendirme testidir. Yüzde 95 güven aralığı ve model inference terimleri ücretsiz olarak seslendirilmektedir.",
+        min_length=1,
+        max_length=500,
+    )
+
+
+class EdgeSampleRequest(BaseModel):
+    voice: str = Field(default="tr-TR-AhmetNeural", max_length=64)
+    text: str = Field(
+        default="Merhaba! Knowledge Hub ile teknik makaleleri doğal ve akıcı bir Türkçeyle okuyup dinleyebilirsiniz. Kod blokları seslendirme sırasında otomatik olarak atlanır.",
         min_length=1,
         max_length=500,
     )
@@ -356,8 +367,11 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
     def narrate_estimate(identifier: str, req: NarrateRequest):
         lookup(identifier)
         settings = lib.get_settings()
-        provider = req.provider or str(settings.get("tts_provider") or "supertonic")
-        if provider == "supertonic":
+        provider = req.provider or str(settings.get("tts_provider") or "edge_tts")
+        if provider == "edge_tts":
+            model = req.model or "edge-neural-tr"
+            voice = req.voice or str(settings.get("edge_tts_voice") or "tr-TR-AhmetNeural")
+        elif provider == "supertonic":
             model = req.model or "supertonic-3"
             voice = req.voice or str(settings.get("supertonic_voice") or "M1")
         else:
@@ -371,9 +385,16 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
     def narrate_endpoint(identifier: str, req: NarrateRequest):
         lookup(identifier)
         settings = lib.get_settings()
-        provider = req.provider or str(settings.get("tts_provider") or "supertonic")
-        model = req.model or ("supertonic-3" if provider == "supertonic" else str(settings.get("elevenlabs_model") or "eleven_flash_v2_5"))
-        voice = req.voice or (str(settings.get("supertonic_voice") or "M1") if provider == "supertonic" else str(settings.get("elevenlabs_voice_id") or ""))
+        provider = req.provider or str(settings.get("tts_provider") or "edge_tts")
+        if provider == "edge_tts":
+            model = req.model or "edge-neural-tr"
+            voice = req.voice or str(settings.get("edge_tts_voice") or "tr-TR-AhmetNeural")
+        elif provider == "supertonic":
+            model = req.model or "supertonic-3"
+            voice = req.voice or str(settings.get("supertonic_voice") or "M1")
+        else:
+            model = req.model or str(settings.get("elevenlabs_model") or "eleven_flash_v2_5")
+            voice = req.voice or str(settings.get("elevenlabs_voice_id") or "")
         api_key = ""
         if provider == "elevenlabs":
             api_key = secrets.get("elevenlabs_api_key") or ""
@@ -386,7 +407,7 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
         elif provider == "mock":
             voice = voice or "mock-tr"
         elif provider == "edge_tts":
-            voice = voice or "tr-TR-AhmetNeural"
+            voice = voice if voice in EDGE_TTS_VOICES else "tr-TR-AhmetNeural"
 
         budget = int(settings.get("elevenlabs_char_budget") or 10000)
 
@@ -851,6 +872,18 @@ def create_app(db_path: str | Path | None = None, secrets_path: str | Path | Non
             sample_path = lib.audio_dir / sample_name
             sample_path.write_bytes(audio_bytes)
             return {"url": f"/api/audio-samples/{sample_name}", "voice": req.voice, "duration_sec": round(dur, 2)}
+        except Exception as exc:
+            raise HTTPException(422, str(exc))
+
+    @app.post("/api/providers/edge-tts/sample")
+    def api_edge_tts_sample(req: EdgeSampleRequest):
+        try:
+            chosen = req.voice if req.voice in EDGE_TTS_VOICES else "tr-TR-AhmetNeural"
+            audio_bytes = synthesize_edge_tts_chunk(req.text, voice=chosen)
+            sample_name = f"sample-{hashlib.sha256(('edge' + chosen + req.text).encode()).hexdigest()[:12]}.mp3"
+            sample_path = lib.audio_dir / sample_name
+            sample_path.write_bytes(audio_bytes)
+            return {"url": f"/api/audio-samples/{sample_name}", "voice": chosen}
         except Exception as exc:
             raise HTTPException(422, str(exc))
 

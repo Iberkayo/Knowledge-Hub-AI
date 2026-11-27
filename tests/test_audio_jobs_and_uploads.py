@@ -30,8 +30,8 @@ def test_chunk_narration_text_respects_budget_and_cleans_markdown():
     assert all(len(c) <= 70 for c in chunks)
     joined = " ".join(chunks)
     assert "```" not in joined
+    assert "x = 1" not in joined
     assert "https://example.com" not in joined
-    assert "Kod bloğu ekranda görüntülenmektedir." in joined
     assert "satir_ici" in joined
 
 

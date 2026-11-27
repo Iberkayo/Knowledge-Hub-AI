@@ -17,12 +17,14 @@
 *Amaç: Çeviri, seslendirme, transkripsiyon ve okuma deneyiminin gerçekten her gün kullanılacak kaliteye ulaşması.*
 - **İçerik Alma:** SSRF korumalı HTTPS makale çekimi, RSS/Atom keşif beslemeleri, belge (`.pdf`, `.epub`, `.html`, `.txt`, `.srt`, `.vtt`) ve ses dosyası yükleme.
 - **Çeviri Motoru:** Paragraf/kod/denklem/sayı bütünlüğünü koruyan, terim sözlüğü destekli, üç ayrı modlu (`faithful` birebir çeviri, `explained` açıklamalı okuma, `summary` özet) çeviri + otomatik QA kontrolleri.
-- **Ses & Transkripsiyon:** Sınırsız yerel Türkçe TTS (**Supertonic 3 ONNX**; gerekirse RTX 6 GB GPU TTS alternatifi), isteğe bağlı ElevenLabs / Edge TTS, yerel **Faster-Whisper** GPU transkripsiyonu.
+- **Ses & Transkripsiyon:** Doğal Türkçe **Edge Neural TTS** (`AhmetNeural` / `EmelNeural`, ücretsiz & sınırsız MP3), çevrimdışı **Supertonic 3 ONNX** (veya isteğe bağlı RTX 6 GB GPU TTS), isteğe bağlı ElevenLabs, yerel **Faster-Whisper** GPU transkripsiyonu. Kod blokları, tablolar ve çıplak URL'ler ne çevrilir ne de seslendirilir.
 - **Editoryal UX Yenilemesi:** "AI slop" estetiğinden uzak; sıcak kağıt/mürekkep renk sistemi, yüksek okunabilirlikli tipografi, tutarlı SVG ikonografi, sade bilgi hiyerarşisi ve dokunsal (tactile) ses oynatıcı.
-- **Çıkış Kriteri:** Gerçek makalelerde çeviri + Türkçe seslendirme + Whisper GPU testi + 54+ birim test + masaüstü & 390px mobil görsel doğrulama.
+- **Çıkış Kriteri:** Gerçek makalelerde doğal Türkçe çeviri + doğal Türkçe seslendirme + Whisper GPU testi + 54+ birim test + masaüstü & 390px mobil görsel doğrulama.
 
-### Aşama 2 — v0.6: Kişisel Mobil Erişim & Gerçek Hayatta Kullanım
-*Amaç: Ev PC / kişisel sunucudaki arka ucu telefonda günlük hayatta (yürüyüş, ulaşım, çevrimdışı) kullanıp ürün ihtiyaçlarını canlı doğrulamak.*
+### Aşama 2 — v0.6: Kişisel Mobil Erişim, Video/YouTube & Podcast Modu
+*Amaç: Ev PC / kişisel sunucudaki arka ucu telefonda günlük hayatta (yürüyüş, ulaşım, çevrimdışı) kullanıp ürün ihtiyaçlarını canlı doğrulamak ve içerik kaynaklarını video + podcast üretimine genişletmek.*
+- **YouTube / Video → Türkçe Podcast (NotebookLM Tarzı):** İzinli video linkinden transkript alma (`youtube-transcript-api` + gerekirse yerel Faster-Whisper CUDA), Türkçeye çevirme ve herhangi bir makale/videodan **2 konuşmacılı (Erkek + Kadın) doğal Türkçe sohbet podcast'i ("Audio Overview")** üretme.
+- **Opsiyonel Çeviri Sağlayıcıları:** OpenRouter yüksek kaliteli Türkçe modellerine (`Gemini 2.5 Flash`, `Claude Sonnet 4`, `GPT-4.1 Mini`) ek olarak isteğe bağlı **DeepL API** adaptörü.
 - **Güvenli Uzak Erişim:** FastAPI arka ucuna opsiyonel Bearer Token kimlik doğrulama katmanı + **Tailscale HTTPS** ile kişisel erişim (varsayılan yine `127.0.0.1`).
 - **Mobil API Sözleşmesi:** `/api/v1/` uyumluluk hazırlığı, sayfalı kütüphane listesi, ses akışı için HTTP `Range` (byte-seek) desteği, senkron okuma/dinleme konumu.
 - **PWA İyileştirmeleri:** iOS Safari "Ana Ekrana Ekle" uyumu, çevrimdışı paketleme (metin + ses) ve saha gözlemiyle native eksiklerin netleştirilmesi.

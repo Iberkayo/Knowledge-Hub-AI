@@ -518,7 +518,7 @@ textarea { min-height: 110px; resize: vertical; line-height: 1.55; }
   position: sticky;
   top: 0;
   z-index: 25;
-  margin: -32px -44px 0;
+  margin: 0 -44px 0;
   padding: 12px 44px;
   background: var(--bg-dock);
   backdrop-filter: blur(14px);
@@ -1170,7 +1170,7 @@ textarea { min-height: 110px; resize: vertical; line-height: 1.55; }
     justify-content: flex-start;
   }
   .reader-bar {
-    margin: -20px -18px 0;
+    margin: 0 -18px 0;
     padding: 10px 14px;
     gap: 8px;
   }

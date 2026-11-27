@@ -24,6 +24,7 @@ ELEVEN_MODELS = (
     {"id": "eleven_multilingual_v2", "name": "Eleven Multilingual v2 (Yüksek Doğallık)"},
 )
 SUPERTONIC_VOICES = ("M1", "M2", "M3", "M4", "M5", "F1", "F2", "F3", "F4", "F5")
+EDGE_TTS_VOICES = ("tr-TR-AhmetNeural", "tr-TR-EmelNeural")
 _SUPERTONIC_LOCK = Lock()
 _SUPERTONIC_ENGINE = None
 
@@ -32,11 +33,26 @@ _MOCK_MP3_FRAME = b"\xff\xfb\x90\x00" + b"\x00" * 413
 
 
 def clean_narration_text(text: str) -> str:
-    """Prepare translated Markdown text for natural speech synthesis."""
-    cleaned = re.sub(r"```[\s\S]*?```", " Kod bloğu ekranda görüntülenmektedir. ", text)
-    cleaned = re.sub(r"`([^`]+)`", r"\1", cleaned)
+    """Prepare translated Markdown text for natural speech synthesis (skip code, tables, raw URLs)."""
+    # Completely omit fenced code blocks and display math — code should never be spoken aloud
+    cleaned = re.sub(r"```[\s\S]*?```", "\n\n", text)
+    cleaned = re.sub(r"\$\$[\s\S]*?\$\$", "\n\n", cleaned)
+    # Remove markdown table lines
+    cleaned = re.sub(r"(?m)^\s*\|.*\|\s*$", "", cleaned)
+    # Keep link labels, drop raw URLs
     cleaned = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", cleaned)
+    cleaned = re.sub(r"https?://\S+", "", cleaned)
+    # Drop inline code backticks; omit code-like tokens with symbols/underscores/paths
+    def _clean_inline_code(match: re.Match[str]) -> str:
+        inner = match.group(1).strip()
+        if any(ch in inner for ch in ("(", ")", "{", "}", "[", "]", "=", ";", "/", "\\", "--")) or len(inner) > 36:
+            return ""
+        return inner
+
+    cleaned = re.sub(r"`([^`]+)`", _clean_inline_code, cleaned)
     cleaned = re.sub(r"^#{1,6}\s+", "", cleaned, flags=re.M)
+    cleaned = re.sub(r"\*\*([^*]+)\*\*", r"\1", cleaned)
+    cleaned = re.sub(r"\*([^*]+)\*", r"\1", cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
 
@@ -496,6 +512,12 @@ def narrate_item(
         "characters_billed": chars_billed,
         "duration_sec": approx_duration,
     }
+
+
+def synthesize_edge_tts_chunk(text: str, *, voice: str = "tr-TR-AhmetNeural") -> bytes:
+    """Synthesize natural native Turkish speech via Microsoft Edge Neural TTS (free, MP3)."""
+    chosen = voice if voice in EDGE_TTS_VOICES else "tr-TR-AhmetNeural"
+    return _synthesize_edge_tts(text, chosen)
 
 
 def _synthesize_edge_tts(text: str, voice: str) -> bytes:

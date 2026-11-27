@@ -538,13 +538,14 @@ async function triggerTranslation(item, { mode = "faithful", force = false } = {
   }
 }
 
-async function triggerNarration(item) {
-  if (item.audio_path && item.audio_status === "ready") {
+async function triggerNarration(item, { forceRegenerate = false } = {}) {
+  const ttsProvider = state.settings.tts_provider || "edge_tts";
+  const hasAudio = Boolean(item.audio_path && item.audio_status === "ready");
+  if (!forceRegenerate && hasAudio && (!item.audio_provider || item.audio_provider === ttsProvider)) {
     player.playItem(item);
     return;
   }
 
-  const ttsProvider = state.settings.tts_provider || "supertonic";
   if (ttsProvider === "browser") {
     const text = item.translated || item.original;
     if (!text) return toast("Seslendirilecek metin yok.");
@@ -558,7 +559,7 @@ async function triggerNarration(item) {
       body: { provider: ttsProvider },
     });
     const box = el("div", {},
-      el("p", {}, `Sağlayıcı: ${est.provider} · Model: ${est.model || "varsayılan"}`),
+      el("p", {}, `Sağlayıcı: ${est.provider} · Ses: ${est.voice || "varsayılan"}`),
       el("p", { className: "help-text" }, `Toplam parça: ${est.total_chunks} (Önbellekten: ${est.cached_chunks || 0}, Yeni: ${est.new_chunks ?? est.total_chunks})`),
       el("p", { className: "help-text" }, `Faturalanacak tahmini yeni karakter: ${est.new_characters_to_bill ?? 0} · Tahmini süre: ~${est.estimated_minutes || 1} dk`),
       el("div", { className: "actions-row", style: { marginTop: "16px" } },
@@ -572,7 +573,15 @@ async function triggerNarration(item) {
               ensureJobPolling();
             } catch (e) { toast(e.message); }
           },
-        }, icon("headphones", 14), "Seslendirmeyi Başlat"),
+        }, icon("headphones", 14), hasAudio ? "Yeni Sesle Üret" : "Seslendirmeyi Başlat"),
+        hasAudio
+          ? el("button", {
+              onclick: () => {
+                closeModal();
+                player.playItem(item);
+              },
+            }, `Mevcut Sesi Çal (${item.audio_provider})`)
+          : null,
         el("button", {
           onclick: () => {
             closeModal();
@@ -870,6 +879,13 @@ function renderReader() {
 
   // More (...) Popover
   const moreMenu = el("div", { className: "popover-menu hidden" },
+    el("button", {
+      className: "menu-item",
+      onclick: () => {
+        closePopovers();
+        triggerNarration(item, { forceRegenerate: true });
+      },
+    }, icon("refresh", 15), "Yeniden Seslendir"),
     el("button", {
       className: "menu-item",
       onclick: async () => {
@@ -1390,7 +1406,21 @@ function renderSettings() {
         el("option", { value: k, ...(s.translation_provider === k ? { selected: "selected" } : {}) }, l)
       )
     );
-    const trModelIn = el("input", { value: s.translation_model || "openai/gpt-4o-mini", placeholder: "örn. openai/gpt-4o-mini" });
+    const trModelIn = el("input", { value: s.translation_model || "google/gemini-2.5-flash", placeholder: "örn. google/gemini-2.5-flash" });
+    const presetModels = el("div", { className: "actions-row", style: { marginTop: "6px" } },
+      ...[
+        ["google/gemini-2.5-flash", "Gemini 2.5 Flash (Hızlı & Doğal TR)"],
+        ["anthropic/claude-sonnet-4", "Claude Sonnet 4 (En Doğal TR)"],
+        ["openai/gpt-4.1-mini", "GPT-4.1 Mini"],
+      ].map(([mid, label]) =>
+        el("button", {
+          type: "button",
+          className: "chip",
+          style: { fontSize: "12px", padding: "3px 9px" },
+          onclick: () => { trModelIn.value = mid; toast(`Model seçildi: ${mid} (Kaydet'e basın)`); },
+        }, label)
+      )
+    );
     const spendLimitIn = el("input", { type: "number", step: "0.5", value: String(s.monthly_spend_limit_usd ?? 10) });
     const orKeyIn = el("input", { type: "password", placeholder: sec.openrouter_api_key?.configured ? `Kayıtlı (${sec.openrouter_api_key.masked})` : "sk-or-v1-..." });
     const oaiKeyIn = el("input", { type: "password", placeholder: sec.openai_api_key?.configured ? `Kayıtlı (${sec.openai_api_key.masked})` : "sk-..." });
@@ -1410,7 +1440,7 @@ function renderSettings() {
       el("h2", {}, "Çeviri Motoru"),
       el("div", { className: "form-grid", style: { marginBottom: "14px" } },
         el("div", { className: "field" }, el("label", {}, "Sağlayıcı"), trProvSel),
-        el("div", { className: "field" }, el("label", {}, "Model Kimliği"), trModelIn, orModelDropdown),
+        el("div", { className: "field" }, el("label", {}, "Model Kimliği"), trModelIn, presetModels, orModelDropdown),
         el("div", { className: "field" }, el("label", {}, "Aylık Uyarı Limiti (USD)"), spendLimitIn)
       ),
       el("div", { className: "form-grid", style: { marginBottom: "16px" } },
@@ -1484,13 +1514,21 @@ function renderSettings() {
   } else if (state.settingsTab === "narration") {
     const ttsProvSel = el("select", {},
       ...[
-        ["supertonic", "Supertonic 3 (Yerel · Ücretsiz · Sınırsız)"],
-        ["edge_tts", "Edge TTS (Ücretsiz Çevrimiçi)"],
+        ["edge_tts", "Edge Neural TTS (Doğal Türkçe · Ücretsiz · Önerilen)"],
+        ["supertonic", "Supertonic 3 (Tam Çevrimdışı Yerel ONNX)"],
         ["browser", "Tarayıcı Sesi (Anlık)"],
         ["elevenlabs", "ElevenLabs (API Kredili)"],
         ["mock", "Mock (Test)"],
       ].map(([k, l]) =>
         el("option", { value: k, ...(s.tts_provider === k ? { selected: "selected" } : {}) }, l)
+      )
+    );
+    const edgeVoiceSel = el("select", {},
+      ...[
+        ["tr-TR-AhmetNeural", "Ahmet · Erkek (Doğal Türkçe)"],
+        ["tr-TR-EmelNeural", "Emel · Kadın (Doğal Türkçe)"],
+      ].map(([k, l]) =>
+        el("option", { value: k, ...((s.edge_tts_voice || "tr-TR-AhmetNeural") === k ? { selected: "selected" } : {}) }, l)
       )
     );
     const stVoiceSel = el("select", {},
@@ -1538,7 +1576,8 @@ function renderSettings() {
       el("h2", {}, "Seslendirme (TTS)"),
       el("div", { className: "form-grid", style: { marginBottom: "14px" } },
         el("div", { className: "field" }, el("label", {}, "Varsayılan Sağlayıcı"), ttsProvSel),
-        el("div", { className: "field" }, el("label", {}, "Supertonic 3 Ses Stili"), stVoiceSel)
+        el("div", { className: "field" }, el("label", {}, "Edge Neural Türkçe Sesi"), edgeVoiceSel),
+        el("div", { className: "field" }, el("label", {}, "Supertonic 3 Ses Stili (Çevrimdışı)"), stVoiceSel)
       ),
       el("div", { className: "actions-row", style: { marginBottom: "18px" } },
         el("button", {
@@ -1548,6 +1587,7 @@ function renderSettings() {
               method: "PATCH",
               body: {
                 tts_provider: ttsProvSel.value,
+                edge_tts_voice: edgeVoiceSel.value,
                 supertonic_voice: stVoiceSel.value,
                 elevenlabs_model: elModelSel.value,
                 elevenlabs_voice_id: elVoiceIn.value.trim(),
@@ -1563,7 +1603,23 @@ function renderSettings() {
         el("button", {
           className: "btn-sm",
           onclick: async () => {
-            elStatusOut.textContent = "Supertonic 3 yerel Türkçe örnek üretiliyor...";
+            elStatusOut.textContent = "Edge Neural doğal Türkçe örnek üretiliyor...";
+            try {
+              const res = await api("/api/providers/edge-tts/sample", {
+                method: "POST",
+                body: { voice: edgeVoiceSel.value },
+              });
+              const a = el("audio", { controls: "controls", src: res.url, style: { width: "100%" } });
+              sampleAudioWrap.replaceChildren(a);
+              a.play().catch(() => {});
+              elStatusOut.textContent = `Edge Neural (${res.voice}) örnek ses hazır (ücretsiz · doğal Türkçe MP3).`;
+            } catch (e) { elStatusOut.textContent = `Hata: ${e.message}`; }
+          },
+        }, icon("volume", 14), "Edge Türkçe Örnek Dinle"),
+        el("button", {
+          className: "btn-ghost btn-sm",
+          onclick: async () => {
+            elStatusOut.textContent = "Supertonic 3 yerel örnek üretiliyor...";
             try {
               const res = await api("/api/providers/supertonic/sample", {
                 method: "POST",
@@ -1572,10 +1628,10 @@ function renderSettings() {
               const a = el("audio", { controls: "controls", src: res.url, style: { width: "100%" } });
               sampleAudioWrap.replaceChildren(a);
               a.play().catch(() => {});
-              elStatusOut.textContent = `Supertonic 3 (${res.voice}) örnek ses hazır (${res.duration_sec} sn · ücretsiz/yerel).`;
+              elStatusOut.textContent = `Supertonic 3 (${res.voice}) örnek ses hazır (${res.duration_sec} sn · çevrimdışı).`;
             } catch (e) { elStatusOut.textContent = `Hata: ${e.message}`; }
           },
-        }, icon("volume", 14), "Supertonic 3 Örnek Dinle")
+        }, "Supertonic 3 Örnek")
       ),
       el("details", { style: { borderTop: "1px solid var(--border)", paddingTop: "14px" } },
         el("summary", { style: { cursor: "pointer", fontWeight: 600, fontSize: "14px", color: "var(--text-muted)" } }, "ElevenLabs Yapılandırması (İsteğe Bağlı)"),
@@ -1666,22 +1722,25 @@ function renderSettings() {
       }, "Kaydet")
     );
   } else if (state.settingsTab === "glossary") {
-    const gEn = el("input", { placeholder: "İngilizce terim (örn. Calibration)" });
-    const gTr = el("input", { placeholder: "Türkçe karşılık (örn. Kalibrasyon)" });
+    const gEn = el("input", { placeholder: "Terim veya özel ad (örn. Eval, Calibration)" });
+    const gTr = el("input", { placeholder: "Türkçe karşılık (boş bırakılırsa aynen korunur)" });
     const gNote = el("input", { placeholder: "Bağlam notu (isteğe bağlı)" });
 
     panel = el("section", { className: "panel" },
-      el("h2", {}, `Teknik Terminoloji Sözlüğü (${state.glossary.length})`),
+      el("h2", {}, `Teknik Terminoloji ve Korunan Terimler (${state.glossary.length})`),
+      el("p", { className: "help-text", style: { marginBottom: "12px" } }, "Çevrilmesini istemediğiniz özel ürün/kütüphane/terim adlarını ekleyip Türkçe karşılığını boş bırakın; çeviride birebir korunur."),
       el("div", { className: "form-grid", style: { marginBottom: "12px" } }, gEn, gTr, gNote),
       el("button", {
         className: "btn-primary btn-sm",
         style: { marginBottom: "16px" },
         onclick: async () => {
-          if (!gEn.value.trim() || !gTr.value.trim()) return toast("İngilizce ve Türkçe terim gereklidir.");
-          await api("/api/glossary", { method: "POST", body: { term_en: gEn.value.trim(), term_tr: gTr.value.trim(), context_note: gNote.value.trim() } });
+          const enVal = gEn.value.trim();
+          const trVal = gTr.value.trim() || enVal;
+          if (!enVal) return toast("En azından terim veya özel ad gereklidir.");
+          await api("/api/glossary", { method: "POST", body: { term_en: enVal, term_tr: trVal, context_note: gNote.value.trim() || (trVal === enVal ? "Çevirmeden aynen koru" : "") } });
           state.glossary = await api("/api/glossary");
           renderCurrentView();
-          toast("Terim kaydedildi.");
+          toast(trVal === enVal ? `"${enVal}" korunan terim olarak eklendi.` : "Terim kaydedildi.");
         },
       }, icon("plus", 14), "Terim Ekle"),
       ...state.glossary.slice(0, 40).map((g) =>
