@@ -1,1 +1,43 @@
-const CACHE='kh-shell-v1';self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['/','/manifest.webmanifest','/icon.svg']))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('kh-shell-')&&k!==CACHE).map(k=>caches.delete(k))))));self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==location.origin||!['/','/manifest.webmanifest','/icon.svg'].includes(u.pathname))return;e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)))});
+const CACHE = "kh-shell-v2";
+const SHELL_ASSETS = [
+  "/",
+  "/manifest.webmanifest",
+  "/icon.svg",
+  "/static/styles.css",
+  "/static/app.js",
+  "/static/render.js",
+  "/static/player.js",
+  "/static/offline.js",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE).then((cache) => cache.addAll(SHELL_ASSETS)).then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith("kh-shell-") && k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const url = new URL(event.request.url);
+  if (event.request.method !== "GET" || url.origin !== location.origin) return;
+  if (!SHELL_ASSETS.includes(url.pathname)) return;
+  event.respondWith(
+    fetch(event.request)
+      .then((resp) => {
+        if (resp.ok) {
+          const clone = resp.clone();
+          caches.open(CACHE).then((cache) => cache.put(event.request, clone));
+        }
+        return resp;
+      })
+      .catch(() => caches.match(event.request))
+  );
+});

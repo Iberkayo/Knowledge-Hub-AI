@@ -1,31 +1,86 @@
-<!doctype html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Knowledge Hub AI</title><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#10151e"><style>
-*{box-sizing:border-box}body{font:16px system-ui;background:#10151e;color:#e6edf5;margin:0}main{max-width:1100px;margin:auto;padding:24px}header{border-bottom:1px solid #364252;margin-bottom:24px}h1{font-size:28px}small{color:#b4c0d0}section{background:#1a2330;border:1px solid #364252;border-radius:12px;padding:20px;margin:16px 0}input,textarea,select,button{font:inherit;padding:10px;border:1px solid #526174;border-radius:8px;background:#10151e;color:#fff}input,textarea,select{width:100%;margin:6px 0 12px}textarea{min-height:110px}button{cursor:pointer;margin:4px;background:#28485b}button:hover{background:#395e73}.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:1.65}.item{display:block;width:100%;text-align:left}label{display:block}#status{color:#f5c681} @media(max-width:650px){.cols{grid-template-columns:1fr}}
-</style></head><body><main><header><h1>Knowledge Hub AI</h1><p>Türkçe bilgi kütüphanesi · API'siz geliştirme sürümü</p></header>
-<section><h2>Bağlantıdan ekle</h2><label>Herkese açık HTTPS makale adresi<input id="articleUrl" type="url"></label><button id="fetchArticle">Makaleyi getir</button><small>Yalnızca erişim izniniz olan içerikleri ekleyin.</small></section><section><h2>İçerik ekle</h2><form id="import"><label>Başlık<input id="title" required maxlength="300"></label><label>Kaynak bağlantısı (isteğe bağlı)<input id="source"></label><div class="cols"><label>Tür<select id="kind"><option value="article">Makale</option><option value="podcast">Podcast</option><option value="document">Belge</option></select></label><label>Biçim<select id="format"><option value="text">Metin</option><option value="html">HTML</option><option value="transcript">Transkript</option></select></label></div><label>Yerel dosya<input id="file" type="file" accept=".txt,.html,.htm,.srt,.vtt"></label><label>İçerik<textarea id="content" required maxlength="200000"></textarea></label><button type="submit">Kütüphaneye ekle</button></form><p id="status" role="status"></p></section>
-<section><h2>RSS / Atom keşfi</h2><label>Kaydedilmiş RSS veya Atom dosyası<input id="feedfile" type="file" accept=".xml,.rss,.atom"></label><label>Herkese açık HTTPS RSS adresi<input id="feedUrl" type="url"></label><button id="fetchFeed">RSS getir</button><div id="feeditems"></div></section><section><h2>Kütüphanem</h2><label>Ara<input id="search" placeholder="Başlık, kategori veya kaynak"></label><label><input type="checkbox" id="favorites" style="width:auto"> Yalnız favoriler</label><div id="items"></div></section>
-<section id="reader" hidden><h2 id="heading"></h2><small id="mode"></small><div><button id="demo">Demo işle</button><button id="listen">Tarayıcıda seslendir</button><button id="stop">Durdur</button><button id="remove">Sil</button><button id="export">Metni indir</button><label>Yerel ses dosyası (orijinal veya üretilmiş MP3)<input id="audiofile" type="file" accept="audio/*"></label><audio id="player" controls preload="metadata" style="width:100%"></audio></div><div class="cols"><div><h3>Orijinal</h3><pre id="original"></pre></div><div><h3>Çıktı</h3><pre id="translated"></pre></div></div><label>Ses hızı<select id="speed"><option>0.8</option><option selected>1</option><option>1.25</option><option>1.5</option></select></label><label><input id="favorite" type="checkbox" style="width:auto"> Favori</label><label>Kategori<input id="category" maxlength="100"></label><label>Notlar<textarea id="notes" maxlength="20000"></textarea></label><button id="saveMeta">Notları kaydet</button><label>Okuma ilerlemesi<input type="range" id="progress" min="0" max="1" step=".01"></label></section></main>
-<script>
-const el=id=>document.getElementById(id);let selected=null;
-async function api(path,method='GET',body){const r=await fetch('/api/items'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});if(!r.ok)throw Error('İşlem başarısız: '+r.status);return r.status===204?null:r.json()}
-function fail(e){el('status').textContent=e.message}
-async function refresh(){const list=await api('');el('items').replaceChildren();for(const item of list.filter(x=>(!el('favorites').checked||x.favorite)&&[x.title,x.category,x.source].join(' ').toLocaleLowerCase('tr').includes(el('search').value.toLocaleLowerCase('tr')))){const b=document.createElement('button');b.className='item';b.textContent=item.title+' · '+item.kind+' · '+item.status;b.onclick=()=>open(item.id).catch(fail);el('items').append(b)}}
-async function open(id){const item=await api('/'+id);selected=item;el('reader').hidden=false;el('heading').textContent=item.title;el('mode').textContent=item.mode==='demo'?'DEMO: bu çıktı gerçek Türkçe çeviri değildir.':'Henüz çeviri yok';el('original').textContent=item.original;el('translated').textContent=item.translated||'';el('progress').value=item.position;el('favorite').checked=!!item.favorite;el('notes').value=item.notes||'';el('category').value=item.category||''}
-el('file').onchange=async()=>{try{const f=el('file').files[0];if(!f)return;if(f.size>200000)throw Error('Dosya 200 KB sınırını aşıyor');el('content').value=await f.text();el('format').value=/\.html?$/i.test(f.name)?'html':/\.(srt|vtt)$/i.test(f.name)?'transcript':'text'}catch(e){fail(e)}};
-el('import').onsubmit=async e=>{e.preventDefault();try{const item=await api('','POST',Object.fromEntries(['title','source','kind','format','content'].map(k=>[k,el(k).value])));await refresh();await open(item.id);el('status').textContent='Kaydedildi'}catch(e){fail(e)}};
-el('demo').onclick=async()=>{try{await api('/'+selected.id+'/demo','POST');await open(selected.id);await refresh()}catch(e){fail(e)}};
-el('progress').onchange=()=>api('/'+selected.id+'/progress','PATCH',{position:Number(el('progress').value)}).catch(fail);
-el('listen').onclick=()=>{if(!('speechSynthesis' in window))return fail(Error('Tarayıcı seslendirmeyi desteklemiyor'));if(!selected.translated)return fail(Error('Önce demo işle'));speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(selected.translated);u.lang='tr-TR';u.rate=Number(el('speed').value);speechSynthesis.speak(u)};
-el('stop').onclick=()=>{if('speechSynthesis' in window)speechSynthesis.cancel()};
-el('remove').onclick=async()=>{if(!confirm('İçerik silinsin mi?'))return;try{await api('/'+selected.id,'DELETE');selected=null;el('reader').hidden=true;await refresh()}catch(e){fail(e)}};
-el('search').oninput=()=>refresh().catch(fail);el('favorites').onchange=()=>refresh().catch(fail);
-el('saveMeta').onclick=async()=>{try{await api('/'+selected.id+'/metadata','PATCH',{favorite:el('favorite').checked,notes:el('notes').value,category:el('category').value});await refresh();el('status').textContent='Notlar kaydedildi'}catch(e){fail(e)}};
-el('export').onclick=()=>{if(selected)location.href='/api/items/'+selected.id+'/export'};
-let audioUrl=null;
-el('audiofile').onchange=()=>{if(audioUrl)URL.revokeObjectURL(audioUrl);const f=el('audiofile').files[0];if(f){audioUrl=URL.createObjectURL(f);el('player').src=audioUrl}};
-el('speed').onchange=()=>{el('player').playbackRate=Number(el('speed').value)};
-el('feedfile').onchange=async()=>{try{const f=el('feedfile').files[0];if(!f)return;if(f.size>2000000)throw Error('RSS dosyası çok büyük');const r=await fetch('/api/feed/parse',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({xml:await f.text()})});if(!r.ok)throw Error('RSS okunamadı');el('feeditems').replaceChildren();for(const item of await r.json()){const b=document.createElement('button');b.textContent=item.title||'Başlıksız';b.onclick=()=>{el('title').value=item.title;el('source').value=item.url;el('kind').value=item.audio?'podcast':'article';el('content').focus()};el('feeditems').append(b)}}catch(e){fail(e)}};
-if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
-el('fetchArticle').onclick=async()=>{try{const r=await fetch('/api/import-url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:el('articleUrl').value})});if(!r.ok)throw Error('Makale getirilemedi. Yerel HTML deneyin.');const item=await r.json();await refresh();await open(item.id)}catch(e){fail(e)}};
-el('fetchFeed').onclick=async()=>{try{const r=await fetch('/api/feed/url',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:el('feedUrl').value})});if(!r.ok)throw Error('RSS getirilemedi');el('feeditems').replaceChildren();for(const item of await r.json()){const b=document.createElement('button');b.textContent=item.title||'Başlıksız';b.onclick=()=>{el('title').value=item.title;el('source').value=item.url;el('kind').value=item.audio?'podcast':'article';el('content').focus()};el('feeditems').append(b)}}catch(e){fail(e)}};
-refresh().catch(fail);
-</script></body></html>
+<!doctype html>
+<html lang="tr" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Knowledge Hub AI — Türkçe Teknik Kütüphane</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#0b0f17">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Ana menü">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">KH</div>
+        <div>
+          <div class="brand-title">Knowledge Hub AI</div>
+          <div class="brand-sub">Türkçe Araştırma Kütüphanesi</div>
+        </div>
+      </div>
+
+      <button class="nav-btn active" data-nav="library">📚 <span>Kütüphanem</span></button>
+      <button class="nav-btn" data-nav="discover">🧭 <span>Keşfet</span></button>
+      <button class="nav-btn" data-nav="listen">🎧 <span>Dinle</span></button>
+      <button class="nav-btn" data-nav="settings">⚙️ <span>Ayarlar</span></button>
+
+      <div class="sidebar-footer">
+        <button id="openAddModalBtn" class="btn-primary">+ Yeni İçerik Ekle</button>
+        <button id="themeToggleBtn" class="btn-ghost btn-sm">☀️ Açık Tema</button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <div id="jobsBanner" class="jobs-banner hidden" aria-live="polite"></div>
+      <div id="viewRoot"></div>
+    </main>
+  </div>
+
+  <!-- Persistent Spotify-like Audio Player -->
+  <section id="playerBar" class="player-bar hidden" aria-label="Ses oynatıcı">
+    <div class="player-info">
+      <div id="playerTitle" class="player-title">—</div>
+      <div id="playerSub" class="player-sub">—</div>
+    </div>
+    <div class="player-controls">
+      <div class="player-buttons">
+        <button id="playerBack15" class="btn-sm" title="15 saniye geri">↺ 15sn</button>
+        <button id="playerPlay" class="btn-primary btn-sm">▶ Oynat</button>
+        <button id="playerFwd30" class="btn-sm" title="30 saniye ileri">30sn ↻</button>
+      </div>
+      <div class="player-seek-row">
+        <span id="playerCurrentTime">0:00</span>
+        <input id="playerSeek" type="range" min="0" max="1000" value="0" aria-label="Oynatma konumu">
+        <span id="playerRemainingTime">0:00</span>
+      </div>
+    </div>
+    <div class="player-extra">
+      <select id="playerSpeed" aria-label="Oynatma hızı">
+        <option value="0.75">0.75x</option>
+        <option value="1" selected>1x</option>
+        <option value="1.25">1.25x</option>
+        <option value="1.5">1.5x</option>
+        <option value="2">2x</option>
+      </select>
+      <button id="playerDownload" class="btn-sm" title="Ses dosyasını indir">⬇ MP3</button>
+      <button id="playerClose" class="btn-ghost btn-sm" title="Oynatıcıyı kapat">✕</button>
+    </div>
+  </section>
+
+  <!-- Generic Modal -->
+  <div id="modalBackdrop" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="modalTitle" style="margin:0"></h3>
+        <button id="modalCloseBtn" class="btn-ghost btn-sm" aria-label="Kapat">✕</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
