@@ -57,7 +57,12 @@ async function api(path, { method = "GET", body, isForm = false } = {}) {
       opts.body = JSON.stringify(body);
     }
   }
-  const resp = await fetch(path, opts);
+  let resp;
+  try {
+    resp = await fetch(path, opts);
+  } catch {
+    throw new Error("Yerel sunucuya (127.0.0.1:8000) ulaşılamıyor. Lütfen start.bat veya start.ps1 penceresinin açık olduğundan emin olun.");
+  }
   if (!resp.ok) {
     let detail = `İşlem başarısız (${resp.status})`;
     try {
@@ -1206,10 +1211,21 @@ function renderSettings() {
         onclick: async () => {
           trTestOut.textContent = "Bağlantı test ediliyor...";
           try {
+            const secretPatch = {};
+            if (orKeyIn.value.trim()) secretPatch.openrouter_api_key = orKeyIn.value.trim();
+            if (oaiKeyIn.value.trim()) secretPatch.openai_api_key = oaiKeyIn.value.trim();
+            if (Object.keys(secretPatch).length) {
+              await api("/api/secrets", { method: "PUT", body: secretPatch });
+              await api("/api/settings", {
+                method: "PATCH",
+                body: { translation_provider: trProvSel.value, translation_model: trModelIn.value.trim() },
+              });
+            }
             const res = await api("/api/providers/translation/test", {
               method: "POST",
               body: { provider: trProvSel.value, model: trModelIn.value.trim() },
             });
+            await loadSettingsData();
             trTestOut.textContent = `✓ Bağlantı başarılı: "${res.sample}"`;
           } catch (e) {
             trTestOut.textContent = `✕ Hata: ${e.message}`;
@@ -1282,10 +1298,14 @@ function renderSettings() {
         onclick: async () => {
           elStatusOut.textContent = "ElevenLabs hesabı ve sesler kontrol ediliyor...";
           try {
+            if (elKeyIn.value.trim()) {
+              await api("/api/secrets", { method: "PUT", body: { elevenlabs_api_key: elKeyIn.value.trim() } });
+            }
             const res = await api("/api/providers/elevenlabs/test", { method: "POST" });
             state.elevenSub = res.subscription;
             state.elevenVoices = res.voices || [];
             state.elevenModels = res.models || state.elevenModels;
+            await loadSettingsData();
             renderCurrentView();
             toast("ElevenLabs bağlantısı başarılı.");
           } catch (e) { elStatusOut.textContent = `✕ ${e.message}`; }
