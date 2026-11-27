@@ -59,6 +59,7 @@ from knowledge_hub.providers import (
 from knowledge_hub.secrets import SUPPORTED_KEYS, SecretStore
 from knowledge_hub.transcript import parse_transcript
 from knowledge_hub.translation import translate_item
+from knowledge_hub.youtube import extract_youtube_video_id, fetch_youtube_transcript
 
 
 class ImportRequest(BaseModel):
@@ -680,9 +681,37 @@ def create_app(
 
     # --- URL & Feed endpoints (backward compatible + enriched) ---
 
+    def _import_youtube_item(url: str) -> dict[str, object]:
+        yt = fetch_youtube_transcript(url)
+        item = lib.add(
+            str(yt["title"]),
+            str(yt["url"]),
+            "podcast",
+            str(yt["text"]),
+            author=str(yt["author"]),
+            category="YouTube",
+            source_lang=str(yt["language"]),
+        )
+        return lib.set_transcript_result(
+            str(item["id"]),
+            text=str(yt["text"]),
+            language=str(yt["language"]),
+            segments=list(yt["segments"]),
+            duration_sec=float(yt["duration_sec"]),
+        )
+
+    @app.post("/api/import-youtube", status_code=201)
+    def import_youtube(req: URLRequest):
+        try:
+            return _import_youtube_item(req.url)
+        except Exception as exc:
+            raise HTTPException(422, f"YouTube transkripti alınamadı ({exc}).")
+
     @app.post("/api/import-url", status_code=201)
     def import_url(req: URLRequest):
         try:
+            if extract_youtube_video_id(req.url):
+                return _import_youtube_item(req.url)
             html, final_url = fetch_public_with_final_url(req.url, expected="html", max_redirects=2)
             rich = extract_rich(html, url=final_url)
             return lib.add(
@@ -696,7 +725,7 @@ def create_app(
                 structured_blocks=rich.blocks,
             )
         except Exception as exc:
-            raise HTTPException(422, f"Makale getirilemedi ({exc}); yerel HTML veya metin yüklemeyi deneyin.")
+            raise HTTPException(422, f"İçerik getirilemedi ({exc}); yerel HTML veya metin yüklemeyi deneyin.")
 
     @app.post("/api/feed/parse")
     def feed_parse(req: FeedRequest):

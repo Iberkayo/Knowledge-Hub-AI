@@ -408,7 +408,7 @@ function showAddContentModal() {
   function renderTab() {
     tabs.replaceChildren(
       ...[
-        ["url", "link", "Makale URL"],
+        ["url", "link", "Makale / YouTube URL"],
         ["file", "file", "Dosya / Ses"],
         ["paste", "alignLeft", "Metin Yapıştır"],
       ].map(([k, ic, label]) =>
@@ -418,8 +418,8 @@ function showAddContentModal() {
     body.replaceChildren();
 
     if (tab === "url") {
-      const urlInput = el("input", { type: "url", placeholder: "https://hamel.dev/evals/" });
-      const statusMsg = el("p", { className: "help-text" }, "Yalnızca erişim izniniz olan herkese açık HTTPS makale adreslerini girin. Başlık, yazar ve metin otomatik çıkarılır.");
+      const urlInput = el("input", { type: "url", placeholder: "https://hamel.dev/evals/ veya https://youtube.com/watch?v=..." });
+      const statusMsg = el("p", { className: "help-text" }, "Herkese açık HTTPS makale adreslerini veya YouTube video linklerini yapıştırın. Makale metni ya da zaman damgalı YouTube transkripti otomatik çıkarılır.");
       const submitBtn = el("button", {
         className: "btn-primary",
         onclick: async () => {
@@ -431,18 +431,18 @@ function showAddContentModal() {
             closeModal();
             await loadLibrary();
             await openReader(item.id);
-            toast("Makale kütüphaneye eklendi.");
+            toast(item.category === "YouTube" ? "YouTube transkripti kütüphaneye eklendi." : "Makale kütüphaneye eklendi.");
           } catch (e) {
             toast(e.message);
           } finally {
             submitBtn.disabled = false;
-            submitBtn.textContent = "Makaleyi Getir";
+            submitBtn.textContent = "İçeriği Getir";
           }
         },
-      }, "Makaleyi Getir");
+      }, "İçeriği Getir");
 
       body.append(
-        el("div", { className: "field", style: { marginBottom: "14px" } }, el("label", {}, "Makale Adresi (HTTPS)"), urlInput, statusMsg),
+        el("div", { className: "field", style: { marginBottom: "14px" } }, el("label", {}, "Makale veya YouTube Adresi (HTTPS)"), urlInput, statusMsg),
         el("div", { className: "actions-row" }, submitBtn)
       );
     } else if (tab === "file") {
