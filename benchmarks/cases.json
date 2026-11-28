@@ -1,0 +1,86 @@
+[
+  {
+    "id": "en-stat",
+    "category": "statistics",
+    "source": "A 95% confidence interval does not assign a 95% probability to the fixed parameter.",
+    "reference": "%95 güven aralığı, sabit parametreye %95 olasılık atamaz."
+  },
+  {
+    "id": "en-ml",
+    "category": "ml-eval",
+    "source": "We fit the model on training data only. The test set must not influence feature selection.",
+    "reference": "Modeli yalnızca eğitim verisine uydururuz. Test kümesi öznitelik seçimini etkilememelidir."
+  },
+  {
+    "id": "de",
+    "category": "multilingual-de",
+    "source": "Die Stichprobe enthält 120 Beobachtungen. Korrelation bedeutet nicht Kausalität.",
+    "reference": "Örneklem 120 gözlem içerir. Korelasyon nedensellik anlamına gelmez."
+  },
+  {
+    "id": "fr",
+    "category": "multilingual-fr",
+    "source": "Le taux d'erreur est passé de 12 % à 8 %, sans modification du seuil.",
+    "reference": "Hata oranı, eşik değiştirilmeden %12'den %8'e düştü."
+  },
+  {
+    "id": "es",
+    "category": "multilingual-es",
+    "source": "La función de pérdida es L = (y - p)^2. No debemos utilizar datos futuros.",
+    "reference": "Kayıp fonksiyonu L = (y - p)^2 şeklindedir. Geleceğe ait verileri kullanmamalıyız."
+  },
+  {
+    "id": "en-code",
+    "category": "code",
+    "source": "Set learning_rate=0.01, but do not assume that a lower training loss implies better generalization.",
+    "reference": "learning_rate=0.01 olarak ayarlayın, ancak daha düşük eğitim kaybının daha iyi genelleme anlamına geldiğini varsaymayın."
+  },
+  {
+    "id": "en-math",
+    "category": "mathematics",
+    "source": "Bayes' theorem states that $P(H|D) = \\frac{P(D|H)P(H)}{P(D)}$, where $P(D) > 0$ is the marginal likelihood.",
+    "reference": "Bayes teoremi $P(H|D) = \\frac{P(D|H)P(H)}{P(D)}$ şeklinde ifade edilir; burada $P(D) > 0$ marjinal olabilirliktir."
+  },
+  {
+    "id": "en-inference-distinction",
+    "category": "terminology",
+    "source": "Statistical inference aims to estimate population parameters, whereas model inference computes predictions on new inputs in 12 ms.",
+    "reference": "İstatistiksel çıkarım (statistical inference) anakütle parametrelerini tahmin etmeyi amaçlarken, modelin tahmin üretmesi (model inference) yeni girdiler üzerinde 12 ms içinde tahmin hesaplar."
+  },
+  {
+    "id": "en-uncertainty",
+    "category": "hedging",
+    "source": "Our preliminary ablation suggests that retrieval depth may improve recall from 0.71 to 0.78, though it does not prove causal superiority.",
+    "reference": "Ön ablasyon çalışmamız, getirme derinliğinin duyarlılığı (recall) 0.71'den 0.78'e çıkarabileceğini düşündürmektedir; ancak bu durum nedensel üstünlüğü kanıtlamaz."
+  },
+  {
+    "id": "en-eval-precision-recall",
+    "category": "ml-eval",
+    "source": "Increasing the decision threshold raised precision to 0.92 while recall dropped to 0.54 across 4,500 validation examples.",
+    "reference": "Karar eşiğinin yükseltilmesi, 4500 doğrulama örneği genelinde kesinliği (precision) 0.92'ye çıkarırken duyarlılığı (recall) 0.54'e düşürdü."
+  },
+  {
+    "id": "en-code-fence",
+    "category": "code",
+    "source": "Use stratified k-fold validation to prevent data leakage:\n\n```python\nscores = cross_val_score(clf, X, y, cv=5)\n```",
+    "reference": "Veri sızıntısını (data leakage) önlemek için katmanlı k-katlı doğrulama kullanın:\n\n```python\nscores = cross_val_score(clf, X, y, cv=5)\n```"
+  },
+  {
+    "id": "en-academic",
+    "category": "academic",
+    "source": "Unlike synthetic benchmarks, production agent harnesses exhibit non-stationary failure modes when tool latency exceeds 850 ms.",
+    "reference": "Sentetik kıyaslamaların aksine, üretim ortamındaki ajan koşumları (agent harnesses) araç gecikmesi 850 ms'yi aştığında durağan olmayan hata biçimleri sergiler."
+  },
+  {
+    "id": "en-podcast-conversational",
+    "category": "podcast",
+    "source": "Look, everyone talks about scaling laws, right? But in practice, half the gains came from cleaning 30% of noisy labels in the post-training dataset.",
+    "reference": "Bakın, herkes ölçekleme yasalarından bahsediyor, değil mi? Ancak pratikte kazanımların yarısı, eğitim sonrası veri kümesindeki gürültülü etiketlerin %30'unun temizlenmesinden geldi."
+  },
+  {
+    "id": "en-long-context",
+    "category": "long-context",
+    "source": "First, define a binary failure taxonomy over 50 traces. Second, measure inter-annotator agreement using Cohen's kappa.\n\nIf kappa is below 0.65, refine the rubric before automating evaluation with an LLM judge.",
+    "reference": "İlk olarak, 50 iz üzerinde ikili bir hata taksonomisi tanımlayın. İkinci olarak, Cohen'in kappa katsayısını kullanarak değerlendiriciler arası uyumu ölçün.\n\nKappa 0.65'in altındaysa, bir LLM hakemiyle değerlendirmeyi otomatikleştirmeden önce rubriği iyileştirin."
+  }
+]

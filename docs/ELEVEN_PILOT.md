@@ -1,0 +1,5 @@
+# ElevenLabs free-tier pilot
+No subscription purchase or live calls in CI. Use a voice available to your own account, preferably a Turkish stock voice without premium multipliers. Confirm current credit balance and API access in the dashboard.
+Dry run: python -m knowledge_hub.eleven --voice YOUR_VOICE_ID
+Live only after authorization: set ELEVENLABS_API_KEY in local environment, then python -m knowledge_hub.eleven --voice YOUR_VOICE_ID --live
+Two models use the same original Turkish technical sample. Compare naturalness, Turkish pronunciation, English technical terms, numeric accuracy and listening fatigue (1–5 each). Record provider-reported character cost if present and latency. Do not infer cost from missing headers. The 3000-character lifetime guard is per output directory, not a provider-enforced credit cap; never reset or change directory to evade it. Check dashboard before each live run. Cached audio is reused for matching text/model/voice. Never commit keys, audio or personal content. Provider calls may retain input under its terms. No automatic retries.
