@@ -1,33 +1,39 @@
-# Handoff — 2026-11-27 23:24 — Antigravity (Home PC w/ RTX 3050 6GB)
+# Handoff — 2026-11-28 22:36 — Antigravity (Home PC w/ RTX 3050 6GB)
 
 ## Goal
 Ship **Knowledge Hub AI** across Web + **Native iOS App Store** (Expo / React Native + FastAPI backend) on `feat/mvp-foundation` (PR #1).
 
 ## Done
 - **Phase 1 & 2 Complete (Checkpoints 1–8: `062bdad`..`ad42440`):** Locked 3-phase iOS App Store scope, API-first architecture & Anti-AI-Slop Editorial UX Constitution, Python 3.11 `.venv` + RTX 3050 CUDA 12 Faster-Whisper, Edge Neural TTS (`AhmetNeural`/`EmelNeural`), fluent Turkish prompt (`v2.1`), code-skipping in narration, Bearer auth (`KH_API_TOKEN`), HTTP `206 Range` audio streaming, YouTube transcript ingestion, and 2-speaker Emel & Ahmet Turkish podcast generation.
-- **Checkpoints 9–11 (`78f36c7`..`05f3bef` — Native iOS App Live-Verified on Real iPhone + App Store Assets + OpenAI TTS):**
+- **Checkpoints 9–12 (`78f36c7`..`2573f9d` — Native iOS App + Zero-Knowledge BYOK + App Store Icon + OpenAI TTS):**
   - Live-verified Expo SDK 58 iOS app on physical iPhone (Library, Editorial Reader, Discover, Listen, Settings, full-screen Now Playing sheet with 60fps scrubber & single smooth swipe-down dismiss, deterministic per-job polling).
-  - Exported opaque 24-bit RGB `1024×1024` editorial App Store icon (`mobile/assets/icon.png`), added Apple `privacyManifests` to `mobile/app.json`, and added high-naturalness **OpenAI `gpt-4o-mini-tts`** provider.
-- **Checkpoint 12 (True Zero-Knowledge BYOK — API Keys Stay 100% on iPhone Keychain):**
-  - Locked Zero-Knowledge BYOK architecture in `docs/ARCHITECTURE.md`: user API keys NEVER leave the iPhone to touch our server, RAM, database, or logs.
-  - Added `mobile/src/directTranslate.ts`: translates directly `iPhone → HTTPS → OpenRouter` (preserving code blocks verbatim on-device, fluent Turkish editorial prompt `v2.1`).
-  - Added iOS Keychain BYOK settings (`openrouterApiKey` + model presets) in `mobile/src/api.ts` & `mobile/src/screens/SettingsScreen.tsx` and wired `ReaderScreen.tsx` to translate directly on-device when a Keychain key is configured (falling back cleanly to personal server otherwise).
-  - Added `PUT /api/items/{identifier}/translation` in `knowledge_hub/server.py` so the iPhone syncs ONLY the finished Turkish text & bilingual segments back to the library (zero API keys ever sent to backend).
-  - Verified **62/62 backend pytest tests** + `mobile/` `npx tsc --noEmit` (0 errors).
+  - Exported opaque 24-bit RGB `1024×1024` editorial App Store icon (`mobile/assets/icon.png`), added OpenAI `gpt-4o-mini-tts`, and implemented **True Zero-Knowledge BYOK** (`mobile/src/directTranslate.ts`: `iPhone → OpenRouter` via iOS Keychain, plus `PUT /api/items/{id}/translation` sync).
+- **Checkpoint 13 (EAS TestFlight Pre-Flight 20/20 Green & Expo Project Linked):**
+  - Installed `eas-cli/27.11.0` globally (already authenticated as `ibrberkoz`).
+  - Installed missing native peer dependency `expo-asset` (prevents standalone crash outside Expo Go) + `expo-splash-screen` (light `#F8F5EF` / dark `#141311` editorial splash).
+  - Hardened `mobile/app.json`: disabled unnecessary microphone permissions (`expo-audio` `microphonePermission: false`, `recordAudioAndroid: false`, `enableBackgroundPlayback: true`), added `NSAppTransportSecurity: { NSAllowsLocalNetworking: true }` (allows local Wi-Fi testing inside TestFlight while enforcing HTTPS for internet/Tailscale), added `buildNumber: "1"`, and verified Apple `privacyManifests`.
+  - Linked EAS project `@ibrberkoz/knowledge-hub-ai` (`projectId: 28ed2794-d3f6-4e62-8684-128a65ab089a`, `owner: "ibrberkoz"`).
+  - Verified **`npx expo-doctor` 20/20 checks passed** and **`npx tsc --noEmit` 0 errors**.
 
 ## In progress
-- **Ready for First Native iOS TestFlight Build (or Cloud/Share Extension):** All core Phase 1–3 foundations are verified, tested, and pushed on `feat/mvp-foundation`.
+- **First iOS TestFlight Cloud Build (Interactive Apple Developer 2FA Step):** User runs `eas build --platform ios --profile production` in PowerShell so Apple Developer interactive 2FA can issue the Distribution Certificate & Provisioning Profile on Apple's portal, then `eas submit --platform ios --latest` to install via TestFlight on iPhone.
 
 ## Next steps
-1. **First Native iOS TestFlight Build (from Windows via EAS Build, unlocks Lock-Screen Background Audio):**
-   - `npm install -g eas-cli && eas login`
-   - `cd mobile && eas build --platform ios --profile production` -> `eas submit --platform ios --latest`
-2. **Optional Tailscale HTTPS Setup** for connecting iPhone outside home Wi-Fi (`docs/MOBILE_ACCESS.md`).
-3. **Phase 3B (App Store Polish):** Native **iOS Share Extension** (1-tap save from Safari/YouTube/X) + optional direct on-device OpenAI TTS (`iPhone → api.openai.com/v1/audio/speech`).
-4. **Phase 3C (Public Multi-User Cloud Backend):** Postgres + R2/S3 + Sign in with Apple + in-app account deletion.
+1. **Trigger First iOS TestFlight Build (User's interactive PowerShell):**
+   ```powershell
+   cd "C:\Users\iberk\OneDrive\Masaüstü\Knowledge-Hub-AI\mobile"
+   eas build --platform ios --profile production
+   ```
+   After build finishes (~10–15 min on EAS macOS runners), submit to TestFlight:
+   ```powershell
+   eas submit --platform ios --latest
+   ```
+2. **Verify Lock-Screen & Background Audio on iPhone via TestFlight:** Confirm continuous background audio + AirPods/lock-screen controls work natively with compiled `UIBackgroundModes: ["audio"]`.
+3. **Phase 3B (Next Features):** Tailscale HTTPS for out-of-home iPhone access (`docs/MOBILE_ACCESS.md`), native **iOS Share Extension** (Safari/X/YouTube 1-tap save), and multi-user cloud backend readiness (Sign in with Apple + account deletion + Postgres/R2).
 
 ## Decisions & why
-- **True Zero-Knowledge BYOK (Model 1A)** — User explicitly chose that third-party API keys must never reach or be stored on our server; iPhone talks directly to OpenRouter over HTTPS using iOS Keychain (`expo-secure-store`), and backend only syncs translated text via `PUT /api/items/{id}/translation`.
+- **`NSAllowsLocalNetworking: true`** — Lets the TestFlight build connect to home LAN `http://192.168.x.x:8000` immediately while keeping strict HTTPS enforced for all public/Tailscale traffic (Apple App Store Review compliant).
+- **`microphonePermission: false` on `expo-audio`** — Prevents unnecessary microphone permission declarations during App Store Review while keeping `UIBackgroundModes: ["audio"]` active.
 - **Never merge to `main`** — Keep all commits on `feat/mvp-foundation` until user explicitly approves merge.
 
 ## How to verify
@@ -35,5 +41,6 @@ Ship **Knowledge Hub AI** across Web + **Native iOS App Store** (Expo / React Na
 cd "C:\Users\iberk\OneDrive\Masaüstü\Knowledge-Hub-AI"
 .\.venv\Scripts\python.exe -m pytest -q
 cd mobile
+npx expo-doctor
 npx tsc --noEmit
 ```
